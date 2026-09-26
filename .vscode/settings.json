@@ -1,0 +1,15 @@
+{
+	// uni-app x 的 .uvue 本质是 Vue SFC，交给 Volar（Vue - Official）接管
+	"files.associations": {
+		"*.uvue": "vue",
+		"*.uts": "typescript"
+	},
+	// .vue / .uvue 模板里启用 Emmet 的 HTML 缩写补全
+	"emmet.includeLanguages": {
+		"vue": "html"
+	},
+	// Volar 需要显式声明它负责的文件语言
+	"vue.server.includeLanguages": [
+		"vue"
+	]
+}

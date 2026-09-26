@@ -1,0 +1,98 @@
+{
+    "name" : "silent-stack-v2",
+    "appid" : "__UNI__51A8D20",
+    "description" : "",
+    "versionName" : "1.0.0",
+    "versionCode" : "100",
+    "uni-app-x" : {
+        "styleIsolationVersion" : "2"
+    },
+    /* 快应用特有相关 */
+    "quickapp" : {},
+    /* 小程序特有相关 */
+    "mp-weixin" : {
+        "appid" : "",
+        "setting" : {
+            "urlCheck" : false
+        },
+        "usingComponents" : true,
+        /* 地图选点：声明 uni.chooseLocation 使用的隐私接口；
+           还需在微信公众平台「开发管理 → 接口设置」开通「位置信息」 */
+        "requiredPrivateInfos" : [
+            "chooseLocation"
+        ]
+    },
+    "mp-alipay" : {
+        "usingComponents" : true
+    },
+    "mp-baidu" : {
+        "usingComponents" : true
+    },
+    "mp-toutiao" : {
+        "usingComponents" : true
+    },
+    "uniStatistics" : {
+        "enable" : false
+    },
+    "vueVersion" : "3",
+    /* Web/H5 平台：uni.chooseLocation 依赖高德 JS API。
+       Key 在高德开放平台（ lbs.amap.com ）创建「Web端(JS API)」应用获取；
+       2021-12 后申请的 Key 必须配 securityJsCode（同页面「安全密钥」），
+       且需在高德控制台把运行域名加入白名单 */
+    "web" : {
+        "sdkConfigs" : {
+            "maps" : {
+                "amap" : {
+                    "key" : "5df1d3978281e53fd6d2b53e1893f713",
+                    "securityJsCode" : "3ae012d76954d95b978e77fced099a90"
+                }
+            }
+        }
+    },
+    "app" : {
+        "distribute" : {
+            /* 地图/位置：App 端 uni.chooseLocation 依赖高德地图模块。
+               Key 在高德开放平台申请（ lbs.amap.com ）：
+               - Android：创建「Android」应用，填包名 + 发布版证书 SHA1
+               - iOS：创建「iOS」应用，填 Bundle ID */
+            "sdkConfigs" : {
+                "maps" : {
+                    "amap" : {
+                        "name" : "高德地图",
+                        "appkey_ios" : "",
+                        "appkey_android" : ""
+                    }
+                }
+            },
+            "icons" : {
+                "android" : {
+                    "hdpi" : "",
+                    "xhdpi" : "",
+                    "xxhdpi" : "",
+                    "xxxhdpi" : ""
+                }
+            }
+        }
+    },
+    "app-android" : {
+        "distribute" : {
+            "modules" : {},
+            "icons" : {
+                "hdpi" : "",
+                "xhdpi" : "",
+                "xxhdpi" : "",
+                "xxxhdpi" : ""
+            },
+            "splashScreens" : {
+                "default" : {}
+            }
+        }
+    },
+    "app-ios" : {
+        "distribute" : {
+            "modules" : {},
+            "icons" : {},
+            "splashScreens" : {}
+        }
+    }
+}

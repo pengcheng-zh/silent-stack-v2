@@ -1,0 +1,288 @@
+{
+	"pages": [
+		{
+			"path": "pages/splash/splash",
+			"style": {
+				"navigationStyle": "custom",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "登录",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/agreement/agreement-service",
+			"style": {
+				"navigationBarTitleText": "用户服务协议",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/agreement/agreement-privacy",
+			"style": {
+				"navigationBarTitleText": "隐私政策",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/settings/settings",
+			"style": {
+				"navigationBarTitleText": "账号设置",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/settings/honor-cards",
+			"style": {
+				"navigationBarTitleText": "我的背景卡",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/settings/consume-records",
+			"style": {
+				"navigationBarTitleText": "消费记录",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/settings/about",
+			"style": {
+				"navigationBarTitleText": "关于我们",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/plaza/plaza",
+			"style": {
+				"navigationBarTitleText": "广场",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": false,
+				"onReachBottomDistance": 50,
+				"backgroundTextStyle": "light",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/jiude/jiude",
+			"style": {
+				"navigationBarTitleText": "酒德",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/jiude-records/jiude-records",
+			"style": {
+				"navigationBarTitleText": "存取记录",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/jiude-rank/jiude-rank",
+			"style": {
+				"navigationBarTitleText": "酒德积分排行",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/rank/rank",
+			"style": {
+				"navigationBarTitleText": "排行榜",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/record/record",
+			"style": {
+				"navigationBarTitleText": "战绩",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"enablePullDownRefresh": false,
+				"onReachBottomDistance": 50,
+				"backgroundTextStyle": "light",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/mine/mine",
+			"style": {
+				"navigationBarTitleText": "我的",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin/admin",
+			"style": {
+				"navigationBarTitleText": "管理后台",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-store/admin-store",
+			"style": {
+				"navigationBarTitleText": "店铺管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-tournament/admin-tournament",
+			"style": {
+				"navigationBarTitleText": "比赛管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-user/admin-user",
+			"style": {
+				"navigationBarTitleText": "用户管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-season/admin-season",
+			"style": {
+				"navigationBarTitleText": "赛季管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-honor/admin-honor",
+			"style": {
+				"navigationBarTitleText": "荣誉管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-notice/admin-notice",
+			"style": {
+				"navigationBarTitleText": "公告管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-jiude/admin-jiude",
+			"style": {
+				"navigationBarTitleText": "酒德管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/location-picker/location-picker",
+			"style": {
+				"navigationBarTitleText": "选择地址",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/game-detail/game-detail",
+			"style": {
+				"navigationBarTitleText": "对局详情",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/game-signup/game-signup",
+			"style": {
+				"navigationBarTitleText": "报名参赛",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "静默筹码",
+		"navigationBarBackgroundColor": "#0B0D0C",
+		"backgroundColor": "#0B0D0C"
+	},
+	"tabBar": {
+		"color": "#6E7573",
+		"selectedColor": "#E8C275",
+		"backgroundColor": "#171A19",
+		"borderStyle": "white",
+		"list": [
+			{
+				"pagePath": "pages/plaza/plaza",
+				"text": "广场",
+				"iconPath": "static/tabbar/plaza.png",
+				"selectedIconPath": "static/tabbar/plaza-active.png"
+			},
+			{
+				"pagePath": "pages/jiude/jiude",
+				"text": "酒德",
+				"iconPath": "static/tabbar/jiude.png",
+				"selectedIconPath": "static/tabbar/jiude-active.png"
+			},
+			{
+				"pagePath": "pages/rank/rank",
+				"text": "排行榜",
+				"iconPath": "static/tabbar/rank.png",
+				"selectedIconPath": "static/tabbar/rank-active.png"
+			},
+			{
+				"pagePath": "pages/record/record",
+				"text": "战绩",
+				"iconPath": "static/tabbar/record.png",
+				"selectedIconPath": "static/tabbar/record-active.png"
+			},
+			{
+				"pagePath": "pages/mine/mine",
+				"text": "我的",
+				"iconPath": "static/tabbar/mine.png",
+				"selectedIconPath": "static/tabbar/mine-active.png"
+			}
+		]
+	},
+	"uniIdRouter": {}
+}

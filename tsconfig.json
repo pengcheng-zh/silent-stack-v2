@@ -1,0 +1,42 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"strict": false,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"jsx": "preserve",
+		"lib": [
+			"ESNext",
+			"DOM"
+		],
+		// 声明 @ 别名指向项目根目录，让 Volar / TS 能解析 @/common/xxx
+		"baseUrl": ".",
+		"paths": {
+			"@/*": [
+				"./*"
+			]
+		},
+		// uni-app 全局 API 与页面生命周期类型（uni / onLoad / onReachBottom 等）
+		"types": [
+			"@dcloudio/types",
+			"@uni-helper/uni-app-types"
+		]
+	},
+	// 让 Volar 识别 uni-app 的内置组件（view / text / scroll-view 等）
+	"vueCompilerOptions": {
+		"plugins": [
+			"@uni-helper/uni-app-types/volar-plugin"
+		]
+	},
+	"include": [
+		"**/*.ts",
+		"**/*.vue",
+		"**/*.uts"
+	],
+	"exclude": [
+		"node_modules",
+		"unpackage"
+	]
+}

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="300" viewBox="0 0 1500 300">
+	<defs>
+		<linearGradient id="glow" x1="0" y1="0" x2="1" y2="0">
+			<stop offset="0" stop-color="#B07AE8" stop-opacity="0.30"/>
+			<stop offset="0.25" stop-color="#B07AE8" stop-opacity="0.07"/>
+			<stop offset="0.75" stop-color="#B07AE8" stop-opacity="0.07"/>
+			<stop offset="1" stop-color="#B07AE8" stop-opacity="0.30"/>
+		</linearGradient>
+		<linearGradient id="stroke" x1="0" y1="0" x2="1" y2="0">
+			<stop offset="0" stop-color="#B07AE8" stop-opacity="0.85"/>
+			<stop offset="0.5" stop-color="#D9C2FF" stop-opacity="0.95"/>
+			<stop offset="1" stop-color="#B07AE8" stop-opacity="0.85"/>
+		</linearGradient>
+		<radialGradient id="vig" cx="0.5" cy="0.5" r="0.72">
+			<stop offset="0.55" stop-color="#000000" stop-opacity="0"/>
+			<stop offset="1" stop-color="#000000" stop-opacity="0.35"/>
+		</radialGradient>
+	</defs>
+	<rect width="1500" height="300" rx="26" fill="#131015"/>
+	<rect width="1500" height="300" rx="26" fill="url(#glow)"/>
+	<text x="64" y="190" font-size="72" fill="#B07AE8" fill-opacity="0.8" font-family="Georgia, serif">&#x2605;</text>
+	<text x="1374" y="190" font-size="72" fill="#B07AE8" fill-opacity="0.8" font-family="Georgia, serif">&#x2605;</text>
+	<line x1="130" y1="30" x2="1370" y2="30" stroke="#B07AE8" stroke-opacity="0.26" stroke-width="2" stroke-dasharray="18 14"/>
+	<line x1="130" y1="270" x2="1370" y2="270" stroke="#B07AE8" stroke-opacity="0.26" stroke-width="2" stroke-dasharray="18 14"/>
+	<rect x="5" y="5" width="1490" height="290" rx="22" fill="none" stroke="url(#stroke)" stroke-width="3"/>
+	<rect x="14" y="14" width="1472" height="272" rx="16" fill="none" stroke="#B07AE8" stroke-opacity="0.16" stroke-width="1.5"/>
+	<g fill="#B07AE8" fill-opacity="0.9">
+		<rect x="30" y="30" width="10" height="10" transform="rotate(45 35 35)"/>
+		<rect x="1460" y="30" width="10" height="10" transform="rotate(45 1465 35)"/>
+		<rect x="30" y="260" width="10" height="10" transform="rotate(45 35 265)"/>
+		<rect x="1460" y="260" width="10" height="10" transform="rotate(45 1465 265)"/>
+	</g>
+	<rect width="1500" height="300" rx="26" fill="url(#vig)"/>
+</svg>
