@@ -127,18 +127,15 @@
 						<view class="pr-top">
 							<text class="player-rank" :class="{ 'player-rank-top': p.alive && p.rank <= 3 }">{{ p.rank }}</text>
 							<view class="pr-avatar" :class="{ 'pr-avatar-out': !p.alive }">
-								<text class="pr-avatar-text">{{ avatarTextOf(p) }}</text>
+								<image v-if="p.avatar != ''" class="pr-avatar-img" :src="p.avatar" mode="aspectFill"></image>
+								<text v-else class="pr-avatar-text">{{ avatarTextOf(p) }}</text>
 							</view>
 							<view class="player-main">
 								<view class="pr-name-line">
 									<text class="player-name" :class="{ 'player-name-out': !p.alive }">{{ p.name }}</text>
 								</view>
-								<!-- 摘要行：买入次数 · 摸鱼分 · 桌号座位 · 筹码（小字） -->
+								<!-- 摘要行：桌号座位 · 筹码（接口暂无逐人筹码，显示占位符） -->
 								<view class="pr-meta">
-									<text class="pr-meta-item">买入 ×{{ p.buyIns }}</text>
-									<text class="pr-meta-dot">·</text>
-									<text class="pr-meta-item pr-meta-fish">摸鱼 {{ p.fishScore }}</text>
-									<text class="pr-meta-dot">·</text>
 									<text class="pr-meta-item">{{ seatTextOf(p) }}</text>
 									<text class="pr-meta-dot">·</text>
 									<text class="pr-meta-item pr-meta-chips">{{ p.chips > 0 ? formatChips(p.chips) : '—' }}</text>
@@ -172,7 +169,11 @@
 
 		</view>
 
-		<view v-else class="empty">
+		<view v-if="loading" class="empty">
+			<text class="loading-text">加载中…</text>
+		</view>
+
+		<view v-else-if="!valid" class="empty">
 			<EmptyState title="对局不存在" desc="该对局可能已结束或被移除，请返回广场重新选择" />
 		</view>
 	</scroll-view>
@@ -372,9 +373,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, type Ref } from 'vue'
-import { getGameDetail, emptyGameDetail } from '@/common/game-detail'
+import { emptyGameDetail, mapMatchDetail } from '@/common/game-detail'
+import { fetchMatchDetail, fetchMatchUsers } from '@/common/match-api'
+import type { MatchDetailVO, MatchUserVO } from '@/common/match-api'
 import type { GameDetail, PlayerInfo } from '@/common/types'
-import { MINE_PROFILE } from '@/common/mine-data'
+import { getLoginResult } from '@/common/user-api'
 
 type StatItem = {
 	label : string
@@ -382,23 +385,49 @@ type StatItem = {
 }
 
 const gameId = ref<string>('')
-// 报名页返回后 onShow 会 bump 一次，强制重算 detail：
-// "本机已报名"记在模块级数组里（joined-store），不是响应式数据
-const refreshKey = ref(0)
+// 当前登录用户 id：用于玩家列表"我"标记与创建者（管理员）判定
+const myUserId = ref<string>('')
+// 接口数据 + 加载态；onShow 重新请求（报名页返回后数据会刷新）
+const detailVo = ref<MatchDetailVO | null>(null)
+// 参赛用户列表（GET /match-user/{id}/list）：玩家行的数据源
+const usersVo = ref<MatchUserVO[]>([])
+const loading = ref<boolean>(false)
+let reqSeq : number = 0   // 防竞态：丢弃过期响应
 
 const detail = computed<GameDetail>((): GameDetail => {
-	// stamp 参与计算只是为了建立依赖，逻辑上恒为 true
-	const stamp : boolean = refreshKey.value >= 0
-	const d : GameDetail | null = getGameDetail(gameId.value)
-	if (d == null || !stamp) { return emptyGameDetail() }
-	return d
+	const vo : MatchDetailVO | null = detailVo.value
+	if (vo == null) { return emptyGameDetail() }
+	return mapMatchDetail(vo, myUserId.value, usersVo.value)
 })
 
-// 未参赛且不是已满员，才给报名入口
+// 拉取比赛详情 + 参赛用户列表；用户列表失败不阻塞详情展示
+const loadDetail = () : void => {
+	if (gameId.value == '') { return }
+	const seq : number = ++reqSeq
+	loading.value = true
+	fetchMatchDetail(gameId.value).then((vo) => {
+		if (seq != reqSeq) { return }
+		detailVo.value = vo
+		loading.value = false
+	}).catch(() => {
+		if (seq != reqSeq) { return }
+		loading.value = false
+		uni.showToast({ title: '对局详情加载失败', icon: 'none' })
+	})
+	fetchMatchUsers(gameId.value).then((list) => {
+		if (seq != reqSeq) { return }
+		usersVo.value = list
+	}).catch(() => {
+		if (seq != reqSeq) { return }
+		usersVo.value = []
+	})
+}
+
+// 未参赛且后端允许加入（joinValid），才给报名入口
 const showJoinBar = computed<boolean>((): boolean => {
 	const d : GameDetail = detail.value
 	if (d.game.id == '' || d.joined) { return false }
-	return d.game.status != '已满员'
+	return d.joinValid
 })
 
 const joinFeeText = computed<string>((): string => {
@@ -410,7 +439,10 @@ const onJoin = () : void => {
 	uni.navigateTo({ url: '/pages/game-signup/game-signup?id=' + gameId.value })
 }
 
-onShow((): void => { refreshKey.value = refreshKey.value + 1 })
+onShow((): void => {
+	// 每次进入/返回页面都重新拉取，报名页返回后数据会自动刷新
+	if (gameId.value != '') { loadDetail() }
+})
 
 const valid = computed<boolean>((): boolean => detail.value.game.id != '')
 
@@ -534,7 +566,7 @@ const statCells = computed<StatItem[]>((): StatItem[] => {
 })
 
 /* ---------------- 参赛玩家（本地工作副本） ---------------- */
-// detail.players 是 mock 派生的只读结果；管理员的"出局 / 出桌 / 摸鱼分"要写回，
+// detail.players 由 /match-user/{id}/list 映射而来；管理员的"出局 / 出桌 / 摸鱼分"要写回，
 // 所以用 watch 拷一份本地副本。detail 重算（onShow / 重新开始）时副本自动重建。
 const playersView : Ref<PlayerInfo[]> = ref([])
 
@@ -546,6 +578,7 @@ watch((): PlayerInfo[] => detail.value.players, (list : PlayerInfo[]) : void => 
 		copy.push({
 			rank: p.rank,
 			name: p.name,
+			avatar: p.avatar,
 			chips: p.chips,
 			alive: p.alive,
 			isMe: p.isMe,
@@ -553,7 +586,8 @@ watch((): PlayerInfo[] => detail.value.players, (list : PlayerInfo[]) : void => 
 			fishScore: p.fishScore,
 			tableNo: p.tableNo,
 			seatNo: p.seatNo,
-			offTable: p.offTable
+			offTable: p.offTable,
+			userStatus: p.userStatus
 		})
 	}
 	playersView.value = copy
@@ -570,9 +604,12 @@ const aliveCount = computed<number>((): number => {
 const bustedCount = computed<number>((): number => detail.value.entrants - aliveCount.value)
 
 /* ---------------- 管理员操作 ---------------- */
-// 当前用户是否为管理员：mock 数据里 MINE_PROFILE.isAdmin 恒为 true，控制本节是否渲染
-// 真实环境应改为"是否该店店长/赛事主理人"的判定，这里保持接口一致
-const isAdmin : boolean = MINE_PROFILE.isAdmin
+// 当前用户是否为该场比赛创建者：只有创建者可见管理员操作区
+// （creatorId 由接口返回；未登录或非创建者都不渲染管理按钮）
+const isAdmin = computed<boolean>((): boolean => {
+	const d : GameDetail = detail.value
+	return myUserId.value != '' && d.creatorId > 0 && String(d.creatorId) == myUserId.value
+})
 
 // 暂停：本机 UI 状态，不影响 mock 数据本身；hero 上挂个"⏸ 已暂停"标识牌给现场看
 const paused : Ref<boolean> = ref(false)
@@ -621,7 +658,7 @@ const onPauseToggle = () : void => {
 	uni.showToast({ title: paused.value ? '已暂停比赛' : '已继续比赛', icon: 'none' })
 }
 
-// 重新开始：清掉本机状态（暂停/级别），refreshKey + 1 触发 detail 重算（mock 下仍是种子派生，但接口保留）
+// 重新开始：清掉本机状态（暂停/级别），并重新拉取接口数据
 const onRestart = () : void => {
 	uni.showModal({
 		title: '重新开始',
@@ -632,7 +669,7 @@ const onRestart = () : void => {
 			if (!res.confirm) { return }
 			paused.value = false
 			levelBoost.value = 0
-			refreshKey.value = refreshKey.value + 1
+			loadDetail()
 			uni.showToast({ title: '已重新开始', icon: 'success' })
 		}
 	})
@@ -658,15 +695,17 @@ const onNextLevel = () : void => {
 // 文字头像：名字首字，与 admin-* 系列 picker 头像同款
 const avatarTextOf = (p : PlayerInfo) : string => p.name.length == 0 ? '?' : p.name.substring(0, 1)
 
-// 桌号 / 座位摘要：出局显示已离桌；出桌保留座位但带"暂离"
+// 桌号 / 座位摘要：未入座（已报名）显示待入座；淘汰显示已离桌；出桌保留座位但带"暂离"
 const seatTextOf = (p : PlayerInfo) : string => {
+	if (p.userStatus == 'E' || p.userStatus == 'C') { return '待入座' }
 	if (!p.alive) { return '已离桌' }
 	if (p.offTable) { return p.tableNo + ' 桌 ' + p.seatNo + ' 号 · 暂离' }
 	return p.tableNo + ' 桌 ' + p.seatNo + ' 号'
 }
 
-// 右侧状态胶囊文案：淘汰 > 出桌 > 我 > 存活（取优先级最高的一档）
+// 右侧状态胶囊文案：已报名 > 淘汰 > 出桌 > 我 > 存活（取优先级最高的一档）
 const statusTextOf = (p : PlayerInfo) : string => {
+	if (p.userStatus == 'E' || p.userStatus == 'C') { return '已报名' }
 	if (!p.alive) { return '已淘汰' }
 	if (p.offTable) { return '已出桌' }
 	if (p.isMe) { return '我' }
@@ -675,6 +714,7 @@ const statusTextOf = (p : PlayerInfo) : string => {
 
 // 状态胶囊样式类（同名 + '-text' 组合文字色）
 const statusClsOf = (p : PlayerInfo) : string => {
+	if (p.userStatus == 'E' || p.userStatus == 'C') { return 'pr-status-enroll' }
 	if (!p.alive) { return 'pr-status-out' }
 	if (p.offTable) { return 'pr-status-off' }
 	if (p.isMe) { return 'pr-status-me' }
@@ -870,6 +910,9 @@ onLoad((options : any) : void => {
 	// onLoad 实际入参就是普通 { id: string } 对象，直接键访问
 	const raw : string | undefined = options != null ? options.id : undefined
 	gameId.value = raw == null ? '' : raw
+	// 登录信息里取当前用户 id（"我"标记 / 创建者判定）；首次加载由随后的 onShow 触发
+	const login = getLoginResult()
+	myUserId.value = login != null ? login.id : ''
 })
 </script>
 
@@ -1048,6 +1091,7 @@ onLoad((options : any) : void => {
 		margin-right: 16rpx;
 	}
 	.pr-avatar-text { font-size: 28rpx; color: #E8C275; font-weight: 700; }
+	.pr-avatar-img { width: 66rpx; height: 66rpx; border-radius: 50%; background-color: #202423; }
 	.pr-avatar-out { background-color: #202423; border-color: #2A2F2D; }
 	.pr-avatar-out .pr-avatar-text { color: #6E7573; }
 	/* 主信息列：名称行 + 摘要行 */
@@ -1073,6 +1117,8 @@ onLoad((options : any) : void => {
 	.pr-status-text { font-size: 21rpx; font-weight: 700; }
 	.pr-status-live { background-color: rgba(42,169,122,0.14); border: 1rpx solid rgba(42,169,122,0.45); }
 	.pr-status-live-text { color: #2AA97A; }
+	.pr-status-enroll { background-color: rgba(178,150,242,0.12); border: 1rpx solid rgba(178,150,242,0.40); }
+	.pr-status-enroll-text { color: #B296F2; }
 	.pr-status-me { background-color: rgba(232,194,117,0.16); border: 1rpx solid rgba(232,194,117,0.50); }
 	.pr-status-me-text { color: #E8C275; }
 	.pr-status-off { background-color: rgba(122,182,242,0.12); border: 1rpx solid rgba(122,182,242,0.40); }
@@ -1401,5 +1447,6 @@ onLoad((options : any) : void => {
 	}
 	.join-btn-text { font-size: 28rpx; color: #14100A; font-weight: 700; }
 
-	.empty { padding-top: 160rpx; }
+	.empty { padding-top: 160rpx; align-items: center; }
+	.loading-text { font-size: 26rpx; color: #8F9492; }
 </style>

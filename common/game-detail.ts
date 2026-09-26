@@ -1,4 +1,6 @@
 import type { GameItem, GameDetail, PlayerInfo } from './types'
+import type { MatchDetailVO, MatchUserVO } from './match-api'
+import { resolveFileUrl } from './http'
 import { MOCK_GAMES } from './mock-data'
 import { hasJoinedOverride } from './joined-store'
 
@@ -37,6 +39,7 @@ export const emptyGameDetail = () : GameDetail => {
 		alive: 0,
 		busted: 0,
 		joined: false,
+		joinValid: false,
 		myState: '',
 		myChips: 0,
 		myRank: 0,
@@ -44,6 +47,7 @@ export const emptyGameDetail = () : GameDetail => {
 		bigBlind: 0,
 		avgChips: 0,
 		totalChips: 0,
+		creatorId: 0,
 		players: []
 	}
 }
@@ -212,6 +216,7 @@ export const getGameDetail = (id : string) : GameDetail | null => {
 		players.push({
 			rank: 0,
 			name: PLAYER_NAMES[(seed + i * 7) % PLAYER_NAMES.length],
+			avatar: '',
 			chips: chips,
 			alive: true,
 			isMe: joined && i == myIdx,
@@ -221,13 +226,15 @@ export const getGameDetail = (id : string) : GameDetail | null => {
 			fishScore: Math.floor(rand(seed + i * 47) * 60),
 			tableNo: 1 + (i % tableCount),
 			seatNo: 1 + ((seed + i * 5) % 9),
-			offTable: false
+			offTable: false,
+			userStatus: 'A'
 		})
 	}
 	for (let i : number = 0; i < busted; i++) {
 		players.push({
 			rank: 0,
 			name: BUSTED_NAMES[(seed + i * 3) % BUSTED_NAMES.length],
+			avatar: '',
 			chips: 0,
 			alive: false,
 			isMe: false,
@@ -237,7 +244,8 @@ export const getGameDetail = (id : string) : GameDetail | null => {
 			// 出局后不再占桌
 			tableNo: 0,
 			seatNo: 0,
-			offTable: false
+			offTable: false,
+			userStatus: 'K'
 		})
 	}
 
@@ -260,6 +268,7 @@ export const getGameDetail = (id : string) : GameDetail | null => {
 		alive: alive,
 		busted: busted,
 		joined: joined,
+		joinValid: !joined,
 		myState: myStateOf(game, joined),
 		myChips: myChips,
 		myRank: myRank,
@@ -267,6 +276,137 @@ export const getGameDetail = (id : string) : GameDetail | null => {
 		bigBlind: blinds[1],
 		avgChips: avgChips,
 		totalChips: totalChips,
+		creatorId: 0,
+		players: players
+	}
+}
+
+/* ---------------- 真实接口映射（GET /match/detail/{id}） ---------------- */
+
+// 状态码 → 中文（与广场列表一致）
+const statusLabelOf = (code : string) : string => {
+	if (code == 'P') { return '进行中' }
+	if (code == 'C') { return '报名中' }
+	if (code == 'S') { return '已暂停' }
+	if (code == 'F') { return '已结束' }
+	return '进行中'
+}
+
+// "yyyy-MM-dd HH:mm:ss" → "MM-DD HH:mm"
+const formatStart = (v : string) : string => {
+	return v.length >= 16 ? v.slice(5, 16) : v
+}
+
+// 我的状态文案：结合 joined / joinValid / 比赛状态
+const myStateOfVo = (vo : MatchDetailVO) : string => {
+	if (vo.joined) {
+		if (vo.status == 'P') { return '在局中' }
+		return '已报名'
+	}
+	if (vo.joinValid && vo.status == 'C') { return '可报名' }
+	if (vo.status == 'P') { return '未参赛' }
+	return '未报名'
+}
+
+/**
+ * MatchUserVO[] → PlayerInfo[]（参赛用户列表 → 详情页玩家行）
+ * 状态映射：A=已加入 / L=已复活（在局）；D=已离桌（出桌，可回桌）；K=已踢出（淘汰）；E=已报名 / C=未加入（待入座）
+ * 排序：ranking 升序（0 = 未排名放最后），同名次保持接口顺序
+ */
+export const mapMatchUsers = (users : MatchUserVO[], myUserId : string) : PlayerInfo[] => {
+	const list : MatchUserVO[] = users.slice()
+	for (let i : number = 0; i < list.length; i++) {
+		let minIdx : number = i
+		for (let j : number = i + 1; j < list.length; j++) {
+			const a : number = list[j].ranking > 0 ? list[j].ranking : 999999
+			const b : number = list[minIdx].ranking > 0 ? list[minIdx].ranking : 999999
+			if (a < b) { minIdx = j }
+		}
+		if (minIdx != i) {
+			const tmp : MatchUserVO = list[i]
+			list[i] = list[minIdx]
+			list[minIdx] = tmp
+		}
+	}
+
+	const players : PlayerInfo[] = []
+	for (let i : number = 0; i < list.length; i++) {
+		const it : MatchUserVO = list[i]
+		players.push({
+			rank: i + 1,
+			name: it.username,
+			avatar: resolveFileUrl(it.avatar),
+			chips: it.currentChips,
+			// 只有踢出（K）才算彻底出局；离桌（D）可回桌 / 可复活
+			alive: it.status != 'K',
+			isMe: myUserId != '' && String(it.userId) == myUserId,
+			// 接口暂无逐人买入次数字段，填 1
+			buyIns: 1,
+			fishScore: it.happyScore,
+			tableNo: it.deskNum,
+			seatNo: it.position,
+			offTable: it.status == 'D',
+			userStatus: it.status
+		})
+	}
+	return players
+}
+
+/**
+ * MatchDetailVO + 参赛用户列表 → 详情页展示结构 GameDetail
+ * 玩家列表来自 /match-user/{id}/list（见 mapMatchUsers）；
+ * detail 的人数统计缺失时用用户列表长度兜底
+ */
+export const mapMatchDetail = (vo : MatchDetailVO, myUserId : string, users : MatchUserVO[] = []) : GameDetail => {
+	const players : PlayerInfo[] = mapMatchUsers(users, myUserId)
+	const entrants : number = vo.totalPlayerCount > 0 ? vo.totalPlayerCount : players.length
+	let aliveFromList : number = 0
+	for (let i : number = 0; i < players.length; i++) {
+		if (players[i].alive) { aliveFromList = aliveFromList + 1 }
+	}
+	const alive : number = vo.currentPlayerCount > 0 ? vo.currentPlayerCount : aliveFromList
+	const busted : number = entrants > alive ? entrants - alive : 0
+
+	// "我"的名次 / 筹码：从玩家列表取（ranking 有值时 rank 序号即真实名次）
+	let myRank : number = 0
+	let myChips : number = 0
+	for (let i : number = 0; i < players.length; i++) {
+		if (players[i].isMe) {
+			if (myRank == 0) { myRank = players[i].rank }
+			myChips = players[i].chips
+			break
+		}
+	}
+
+	return {
+		game: {
+			id: String(vo.id),
+			storeId: String(vo.storeId),
+			storeName: vo.storeName,
+			city: '',
+			title: vo.name,
+			players: vo.currentPlayerCount,
+			maxPlayers: vo.totalPlayerCount,
+			startChips: vo.originChips,
+			level: 'Lv.' + vo.currentLevel,
+			status: statusLabelOf(vo.status),
+			startTime: formatStart(vo.startTime),
+			buyIn: vo.joinAmount
+		},
+		type: vo.typeName,
+		entrants: entrants,
+		alive: alive,
+		busted: busted,
+		joined: vo.joined,
+		joinValid: vo.joinValid,
+		myState: myStateOfVo(vo),
+		myChips: myChips,
+		myRank: myRank,
+		smallBlind: vo.minChips,
+		bigBlind: vo.maxChips,
+		avgChips: vo.avgChips,
+		totalChips: vo.totalChips,
+		creatorId: vo.creatorId,
 		players: players
 	}
 }

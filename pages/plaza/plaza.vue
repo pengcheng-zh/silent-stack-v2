@@ -126,21 +126,24 @@
 				<text class="section-count">{{ activeCityGroup.count }} 家 · {{ activeCityGroup.openGames }} 桌在开</text>
 			</view>
 
-			<view
-				v-for="s in activeCityStores"
-				:key="s.id"
-				class="store-row"
-				:class="{ 'store-row-active': activeStoreId === s.id }"
-				@tap="selectStore(s.id)"
-			>
-				<view class="store-row-main">
-					<text class="store-row-name" :class="{ 'store-row-name-active': activeStoreId === s.id }">{{ s.name }}</text>
-					<text class="store-row-meta">{{ s.address }}</text>
-					<text v-if="activeStoreId === s.id" class="store-row-addr">在座 {{ s.currentPlayers }} 人 · 累计 {{ s.totalPlayers }} 人</text>
-				</view>
-				<view class="store-row-right">
-					<text class="store-row-num" :class="{ 'store-row-num-active': activeStoreId === s.id }">{{ s.openGames }}</text>
-					<text class="store-row-unit">桌在开</text>
+			<!-- 门店卡片两列平铺：比单列省一半纵向空间 -->
+			<view class="store-grid">
+				<view
+					v-for="s in activeCityStores"
+					:key="s.id"
+					class="store-card"
+					:class="{ 'store-card-active': activeStoreId === s.id }"
+					@tap="selectStore(s.id)"
+				>
+					<text class="store-card-name" :class="{ 'store-card-name-active': activeStoreId === s.id }">{{ s.name }}</text>
+					<text class="store-card-addr">{{ s.address }}</text>
+					<view class="store-card-foot">
+						<text v-if="activeStoreId === s.id" class="store-card-seat">在座 {{ s.currentPlayers }} 人 · 累计 {{ s.totalPlayers }} 人</text>
+						<view v-else class="store-card-open">
+							<text class="store-card-num">{{ s.openGames }}</text>
+							<text class="store-card-unit">桌在开</text>
+						</view>
+					</view>
 				</view>
 			</view>
 		</view>
@@ -203,7 +206,7 @@
 						<text class="foot-buyin">{{ game.minChips > 0 ? ('盲注 ' + game.minChips + '/' + game.maxChips) : game.typeName }}</text>
 					</view>
 					<view class="foot-btn" @tap.stop="onBook(game)">
-						<text class="foot-btn-text">预约</text>
+						<text class="foot-btn-text">{{ gameTab === 'live' ? '参赛' : '预约' }}</text>
 					</view>
 				</view>
 			</view>
@@ -633,7 +636,7 @@ const mapGame = (vo : any) : PlazaGame => {
 const fetchGamesPage = (targetPage : number, replace : boolean) : void => {
 	const seq : number = ++reqSeq
 	loading.value = true
-	const status : string = gameTab.value === 'live' ? 'P' : 'C'
+	const status : string = gameTab.value === 'live' ? 'P' : 'B'
 	// 选中门店时按 storeId 精确过滤，city 置空避免双重约束
 	const sid : string = activeStoreId.value
 	const city : string = sid != '' ? '' : activeCity.value
@@ -757,7 +760,8 @@ const onGameTap = (game : PlazaGame) : void => {
 }
 
 const onBook = (game : PlazaGame) : void => {
-	uni.showToast({ title: '已为您预约：' + game.title, icon: 'success' })
+	const tip : string = gameTab.value === 'live' ? '已报名参赛：' : '已为您预约：'
+	uni.showToast({ title: tip + game.title, icon: 'success' })
 }
 
 /* ---------------- 样式辅助 ---------------- */
@@ -1010,32 +1014,39 @@ const formatChips = (n : number) : string => {
 	.chip-num-text { font-size: 18rpx; color: #8F9492; font-weight: 700; line-height: 28rpx; }
 	.chip-num-text-active { color: #FFFFFF; }
 
-	/* ============ 城市门店列表 ============ */
-	.store-row {
+	/* ============ 城市门店列表（两列平铺） ============ */
+	.store-grid {
 		flex-direction: row;
-		align-items: center;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		margin-top: 4rpx;
+	}
+	.store-card {
+		box-sizing: border-box;
+		width: 48.5%;
+		min-height: 180rpx;
+		flex-direction: column;
 		justify-content: space-between;
 		background-color: #1A1E1D;
-		border-radius: 24rpx;
-		padding: 24rpx 28rpx;
+		border-radius: 20rpx;
+		padding: 20rpx 24rpx;
 		margin-bottom: 16rpx;
 		border: 1rpx solid #2A2F2D;
 		box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.30);
 	}
-	.store-row-active {
+	.store-card-active {
 		border-color: #D9A441;
 		background-image: linear-gradient(135deg, rgba(232,194,117,0.18), rgba(232,194,117,0.05));
 		box-shadow: 0 6rpx 20rpx rgba(232, 194, 117, 0.25);
 	}
-	.store-row-main { flex: 1; flex-direction: column; }
-	.store-row-name { font-size: 28rpx; color: #EDEFEE; font-weight: 600; }
-	.store-row-name-active { color: #E8C275; }
-	.store-row-meta { font-size: 22rpx; color: #8F9492; margin-top: 6rpx; }
-	.store-row-addr { font-size: 22rpx; color: #E8C275; margin-top: 6rpx; }
-	.store-row-right { flex-direction: column; align-items: center; margin-left: 20rpx; }
-	.store-row-num { font-size: 30rpx; color: #EDEFEE; font-weight: 700; }
-	.store-row-num-active { color: #E8C275; }
-	.store-row-unit { font-size: 20rpx; color: #7E8281; margin-top: 2rpx; }
+	.store-card-name { font-size: 28rpx; color: #EDEFEE; font-weight: 600; }
+	.store-card-name-active { color: #E8C275; }
+	.store-card-addr { font-size: 22rpx; color: #8F9492; margin-top: 8rpx; }
+	.store-card-foot { flex-direction: row; align-items: flex-end; }
+	.store-card-open { flex-direction: row; align-items: flex-end; }
+	.store-card-num { font-size: 32rpx; color: #EDEFEE; font-weight: 700; line-height: 36rpx; }
+	.store-card-unit { font-size: 20rpx; color: #7E8281; margin-left: 6rpx; line-height: 32rpx; }
+	.store-card-seat { font-size: 22rpx; color: #E8C275; line-height: 36rpx; }
 
 	/* ============ 对局列表 ============ */
 	.section { margin: 32rpx 0 0; }

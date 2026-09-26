@@ -213,6 +213,217 @@ export const fetchMatchList = (
 	})
 }
 
+/** 桌位玩家（MatchDetailVO.deskPositionList 元素） */
+export type DeskPositionVO = {
+	deskNum : number        // 桌号
+	position : number       // 座位号
+	ranking : number        // 名次
+	userId : number
+	avatar : string
+	username : string
+}
+
+/** 比赛详情 VO：GET /match/detail/{id} */
+export type MatchDetailVO = {
+	id : number | string
+	userRole : string
+	phoneBind : boolean
+	storeId : number
+	storeName : string
+	storeAddress : string
+	name : string
+	type : number
+	typeName : string
+	currentLevel : number
+	currentLevelRemainTime : string
+	currentLevelRemainSeconds : number
+	minChips : number
+	maxChips : number
+	preChips : number
+	originChips : number
+	scheduled : number
+	startTime : string
+	endTime : string
+	costTime : string
+	userReliveCount : number
+	userRemainReliveCount : number
+	mushReliveCount : number
+	remainReliveCount : number
+	joinAmount : number
+	joinTicket : number
+	joinMonthTicket : number
+	joinInviteCard : number
+	doubleRelive : boolean
+	rankOneScore : number
+	rankTwoScore : number
+	rankThreeScore : number
+	rankOneTicket : number
+	rankTwoTicket : number
+	rankThreeTicket : number
+	joined : boolean
+	joinedStatus : string
+	joinValid : boolean
+	deskCount : number
+	currentPlayerCount : number
+	totalPlayerCount : number
+	avgChips : number
+	totalChips : number
+	deskPositionList : DeskPositionVO[]
+	userBalance : number
+	userTicket : number
+	userMonthTicket : number
+	userInviteCard : number
+	creatorId : number
+	status : string
+	createTime : string
+}
+
+/** 比赛详情：GET /match/detail/{id}，未找到返回 null */
+export const fetchMatchDetail = (id : string) : Promise<MatchDetailVO | null> => {
+	return httpGet<any>('/match/detail/' + id).then((r : any) => {
+		if (r == null) { return null }
+		const rawList : any[] = Array.isArray(r.deskPositionList) ? r.deskPositionList : []
+		const desks : DeskPositionVO[] = []
+		for (let i = 0; i < rawList.length; i++) {
+			const it = rawList[i]
+			desks.push({
+				deskNum: Number(it.deskNum ?? 0),
+				position: Number(it.position ?? 0),
+				ranking: Number(it.ranking ?? 0),
+				userId: Number(it.userId ?? 0),
+				avatar: (it.avatar ?? '').toString(),
+				username: (it.username ?? '').toString()
+			})
+		}
+		return {
+			id: r.id,
+			userRole: (r.userRole ?? '').toString(),
+			phoneBind: r.phoneBind == true,
+			storeId: Number(r.storeId ?? 0),
+			storeName: (r.storeName ?? '').toString(),
+			storeAddress: (r.storeAddress ?? '').toString(),
+			name: (r.name ?? '').toString(),
+			type: Number(r.type ?? 0),
+			typeName: (r.typeName ?? '').toString(),
+			currentLevel: Number(r.currentLevel ?? 0),
+			currentLevelRemainTime: (r.currentLevelRemainTime ?? '').toString(),
+			currentLevelRemainSeconds: Number(r.currentLevelRemainSeconds ?? 0),
+			minChips: Number(r.minChips ?? 0),
+			maxChips: Number(r.maxChips ?? 0),
+			preChips: Number(r.preChips ?? 0),
+			originChips: Number(r.originChips ?? 0),
+			scheduled: Number(r.scheduled ?? 0),
+			startTime: (r.startTime ?? '').toString(),
+			endTime: (r.endTime ?? '').toString(),
+			costTime: (r.costTime ?? '').toString(),
+			userReliveCount: Number(r.userReliveCount ?? 0),
+			userRemainReliveCount: Number(r.userRemainReliveCount ?? 0),
+			mushReliveCount: Number(r.mushReliveCount ?? 0),
+			remainReliveCount: Number(r.remainReliveCount ?? 0),
+			joinAmount: Number(r.joinAmount ?? 0),
+			joinTicket: Number(r.joinTicket ?? 0),
+			joinMonthTicket: Number(r.joinMonthTicket ?? 0),
+			joinInviteCard: Number(r.joinInviteCard ?? 0),
+			doubleRelive: r.doubleRelive == true,
+			rankOneScore: Number(r.rankOneScore ?? 0),
+			rankTwoScore: Number(r.rankTwoScore ?? 0),
+			rankThreeScore: Number(r.rankThreeScore ?? 0),
+			rankOneTicket: Number(r.rankOneTicket ?? 0),
+			rankTwoTicket: Number(r.rankTwoTicket ?? 0),
+			rankThreeTicket: Number(r.rankThreeTicket ?? 0),
+			joined: r.joined == true,
+			joinedStatus: (r.joinedStatus ?? '').toString(),
+			joinValid: r.joinValid == true,
+			deskCount: Number(r.deskCount ?? 0),
+			currentPlayerCount: Number(r.currentPlayerCount ?? 0),
+			totalPlayerCount: Number(r.totalPlayerCount ?? 0),
+			avgChips: Number(r.avgChips ?? 0),
+			totalChips: Number(r.totalChips ?? 0),
+			deskPositionList: desks,
+			userBalance: Number(r.userBalance ?? 0),
+			userTicket: Number(r.userTicket ?? 0),
+			userMonthTicket: Number(r.userMonthTicket ?? 0),
+			userInviteCard: Number(r.userInviteCard ?? 0),
+			creatorId: Number(r.creatorId ?? 0),
+			status: (r.status ?? '').toString(),
+			createTime: (r.createTime ?? '').toString()
+		}
+	})
+}
+
+/* ---------------- 参赛用户列表（GET /match-user/{matchId}/list） ---------------- */
+
+/** 参赛用户 VO（对应后端 MatchUserVO） */
+export type MatchUserVO = {
+	id : number
+	matchId : number
+	storeId : number
+	matchName : string
+	userId : number
+	userNo : string
+	username : string
+	avatar : string
+	stealth : string               // Y/N 是否隐身
+	originChips : number           // 初始筹码
+	currentChips : number          // 当前筹码
+	deskNum : number               // 桌号
+	position : number              // 座位号
+	ranking : number               // 名次（0 = 未排名）
+	finalScore : number            // 该场积分
+	prizeTicket : number           // 奖励票
+	ticket : number
+	userReliveCount : number       // 个人复活次数
+	mushReliveCount : number       // 蘑菇次数（公共）
+	status : string                // C=未加入 E=已报名 A=已加入 D=已离桌 L=已复活 K=已踢出
+	userBackgroundUrl : string
+	joinMatchCount : number        // 累计参赛场次
+	winnerRate : number            // 胜率
+	enterFinalCount : number       // 进圈次数
+	happyScore : number            // 摸鱼分
+	createTime : string
+}
+
+/** 参赛用户列表：GET /match-user/{matchId}/list */
+export const fetchMatchUsers = (matchId : string) : Promise<MatchUserVO[]> => {
+	return httpGet<any>('/match-user/' + matchId + '/list').then((r : any) => {
+		// 兼容纯数组 / { list } / { records } 三种返回
+		const raw : any[] = Array.isArray(r) ? r : ((r && (r.list || r.records)) || [])
+		const out : MatchUserVO[] = []
+		for (let i = 0; i < raw.length; i++) {
+			const it = raw[i]
+			out.push({
+				id: Number(it.id ?? 0),
+				matchId: Number(it.matchId ?? 0),
+				storeId: Number(it.storeId ?? 0),
+				matchName: (it.matchName ?? '').toString(),
+				userId: Number(it.userId ?? 0),
+				userNo: (it.userNo ?? '').toString(),
+				username: (it.username ?? '').toString(),
+				avatar: (it.avatar ?? '').toString(),
+				stealth: (it.stealth ?? '').toString(),
+				originChips: Number(it.originChips ?? 0),
+				currentChips: Number(it.currentChips ?? 0),
+				deskNum: Number(it.deskNum ?? 0),
+				position: Number(it.position ?? 0),
+				ranking: Number(it.ranking ?? 0),
+				finalScore: Number(it.finalScore ?? 0),
+				prizeTicket: Number(it.prizeTicket ?? 0),
+				ticket: Number(it.ticket ?? 0),
+				userReliveCount: Number(it.userReliveCount ?? 0),
+				mushReliveCount: Number(it.mushReliveCount ?? 0),
+				status: (it.status ?? '').toString(),
+				userBackgroundUrl: (it.userBackgroundUrl ?? '').toString(),
+				joinMatchCount: Number(it.joinMatchCount ?? 0),
+				winnerRate: Number(it.winnerRate ?? 0),
+				enterFinalCount: Number(it.enterFinalCount ?? 0),
+				happyScore: Number(it.happyScore ?? 0),
+				createTime: (it.createTime ?? '').toString()
+			})
+		}
+		return out
+	})
+}
+
 /** GET /match/types —— 比赛类型及对应数值 */
 export const fetchMatchTypes = () : Promise<MatchTypeVO[]> => {
 	return httpGet<any>('/match/types').then((r : any) => {

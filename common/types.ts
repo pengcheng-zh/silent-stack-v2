@@ -53,6 +53,7 @@ export type MapLabel = {
 export type PlayerInfo = {
 	rank : number
 	name : string
+	avatar : string         // 头像 URL（空串 = 用文字头像）
 	chips : number
 	alive : boolean
 	isMe : boolean
@@ -61,6 +62,7 @@ export type PlayerInfo = {
 	tableNo : number        // 桌号（0 = 未分桌 / 已离桌）
 	seatNo : number         // 座位号（0 = 未分配）
 	offTable : boolean      // 已出桌：人还在赛场但暂离牌桌，可回桌
+	userStatus : string     // 后端玩家状态码：A=已加入 D=已离桌 L=已复活 K=已踢出 E=已报名 C=未加入
 }
 // 列表卡片只需要摘要字段，详情页要展示完整赛事数据，单独定义避免 GameItem 被撑胖
 export type GameDetail = {
@@ -70,6 +72,7 @@ export type GameDetail = {
 	alive : number
 	busted : number
 	joined : boolean
+	joinValid : boolean     // 是否允许报名/加入（后端 joinValid）
 	myState : string
 	myChips : number
 	myRank : number
@@ -77,6 +80,7 @@ export type GameDetail = {
 	bigBlind : number
 	avgChips : number
 	totalChips : number
+	creatorId : number      // 比赛创建者用户 id（管理员操作区可见性判定）
 	players : PlayerInfo[]
 }
 
