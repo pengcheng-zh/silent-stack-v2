@@ -1,63 +1,5 @@
 import { httpGet, httpPost } from './http'
-import type { AdminTournament } from './admin-tournament-data'
-import type { TournamentStatus } from './admin-tournament-data'
 import type { UserRankingDTO } from './ranking-api'
-
-/** 后端状态码 → 前端状态 */
-export const statusFromCode = (code : string) : TournamentStatus => {
-	switch ((code || '').toUpperCase()) {
-		case 'P': return 'active'
-		case 'C': return 'signup'
-		case 'S': return 'paused'
-		case 'F': return 'ended'
-	}
-	return 'active'
-}
-
-export const statusLabelOf = (s : TournamentStatus) : string => {
-	switch (s) {
-		case 'active': return '进行中'
-		case 'signup': return '报名中'
-		case 'paused': return '已暂停'
-		case 'ended': return '已结束'
-	}
-	return s
-}
-
-/** MatchVO → AdminTournament（字段名与后端对齐，仅做类型归一化） */
-export const fromMatchVO = (vo : MatchVO) : AdminTournament => {
-	return {
-		id: String(vo.id),
-		storeId: String(vo.storeId),
-		storeName: (vo.storeName ?? '').toString(),
-		matchName: (vo.name ?? '').toString(),
-		typeId: Number(vo.type ?? 0),
-		typeName: (vo.typeName ?? '').toString(),
-		scheduled: Number(vo.scheduled ?? 0),
-		startTime: (vo.startTime ?? '').toString(),
-		currentLevel: Number(vo.currentLevel ?? 0),
-		firstHalfDuration: Number(vo.firstHalfDuration ?? 0),
-		secondHalfDuration: Number(vo.secondHalfDuration ?? 0),
-		originChips: Number(vo.originChips ?? 0),
-		minChips: Number(vo.minChips ?? 0),
-		maxChips: Number(vo.maxChips ?? 0),
-		preChips: Number(vo.preChips ?? 0),
-		userReliveCount: Number(vo.userReliveCount ?? 0),
-		mushReliveCount: Number(vo.mushReliveCount ?? 0),
-		joinAmount: 0,                          // 列表 VO 不返回
-		joinTicket: 0,                          // 列表 VO 不返回
-		joinMonthTicket: 0,                     // 列表 VO 不返回
-		joinInviteCard: 0,                      // 列表 VO 不返回
-		deskCount: Number(vo.deskCount ?? 0),
-		rankOneScore: Number(vo.rankOneScore ?? 0),
-		rankTwoScore: Number(vo.rankTwoScore ?? 0),
-		rankThreeScore: Number(vo.rankThreeScore ?? 0),
-		rankOneTicket: Number(vo.rankOneTicket ?? 0),
-		rankTwoTicket: Number(vo.rankTwoTicket ?? 0),
-		rankThreeTicket: Number(vo.rankThreeTicket ?? 0),
-		status: statusFromCode(vo.status)
-	}
-}
 
 /** 比赛管理列表 VO（来自 /match/manage-list） */
 export type MatchVO = {
@@ -93,6 +35,10 @@ export type MatchVO = {
 	playerCount : number
 	currentPlayerCount : number
 	status : string                 // P=进行中 C=报名中 S=暂停 F=已结束
+	joinAmount : number
+	joinTicket : number
+	joinMonthTicket : number
+	joinInviteCard : number
 }
 
 export type MatchPage = {
@@ -101,6 +47,46 @@ export type MatchPage = {
 	page : number
 	limit : number
 }
+
+/** 空比赛表单（创建比赛/预约时的默认值，直接是 MatchVO 结构） */
+export const emptyMatchVO = (scheduled : number) : MatchVO => ({
+	id: 0,
+	storeId: 0,
+	storeName: '',
+	address: '',
+	latitude: '',
+	longitude: '',
+	type: 0,
+	typeName: '',
+	deskCount: 1,
+	name: '',
+	scheduled: scheduled,
+	startTime: '',
+	currentLevel: 1,
+	originChips: 10000,
+	minChips: 25,
+	maxChips: 50,
+	preChips: 1500,
+	userReliveCount: 0,
+	mushReliveCount: 2,
+	remainReliveCount: 0,
+	firstHalfDuration: 20,
+	secondHalfDuration: 30,
+	rankOneScore: 200,
+	rankTwoScore: 120,
+	rankThreeScore: 80,
+	rankOneTicket: 5,
+	rankTwoTicket: 3,
+	rankThreeTicket: 1,
+	avgChips: 0,
+	playerCount: 0,
+	currentPlayerCount: 0,
+	status: 'P',
+	joinAmount: 200,
+	joinTicket: 0,
+	joinMonthTicket: 0,
+	joinInviteCard: 0
+})
 
 /** 比赛类型 VO（来自 /match/types） */
 export type MatchTypeVO = {
@@ -132,55 +118,13 @@ export type MatchRuleVO = {
 	createTime : string
 }
 
-/** 后端单条比赛记录 → MatchVO（字段归一化，manage-list / list 共用） */
-const toMatchVO = (it : any) : MatchVO => {
-	return {
-		id: it.id,
-		storeId: it.storeId,
-		storeName: (it.storeName ?? '').toString(),
-		address: (it.address ?? '').toString(),
-		latitude: (it.latitude ?? '').toString(),
-		longitude: (it.longitude ?? '').toString(),
-		type: Number(it.type ?? 0),
-		typeName: (it.typeName ?? '').toString(),
-		deskCount: Number(it.deskCount ?? 0),
-		name: (it.name ?? '').toString(),
-		scheduled: Number(it.scheduled ?? 0),
-		startTime: (it.startTime ?? '').toString(),
-		currentLevel: Number(it.currentLevel ?? 0),
-		originChips: Number(it.originChips ?? 0),
-		minChips: Number(it.minChips ?? 0),
-		maxChips: Number(it.maxChips ?? 0),
-		preChips: Number(it.preChips ?? 0),
-		userReliveCount: Number(it.userReliveCount ?? 0),
-		mushReliveCount: Number(it.mushReliveCount ?? 0),
-		remainReliveCount: Number(it.remainReliveCount ?? 0),
-		firstHalfDuration: Number(it.firstHalfDuration ?? 0),
-		secondHalfDuration: Number(it.secondHalfDuration ?? 0),
-		rankOneScore: Number(it.rankOneScore ?? 0),
-		rankTwoScore: Number(it.rankTwoScore ?? 0),
-		rankThreeScore: Number(it.rankThreeScore ?? 0),
-		rankOneTicket: Number(it.rankOneTicket ?? 0),
-		rankTwoTicket: Number(it.rankTwoTicket ?? 0),
-		rankThreeTicket: Number(it.rankThreeTicket ?? 0),
-		avgChips: Number(it.avgChips ?? 0),
-		playerCount: Number(it.playerCount ?? 0),
-		currentPlayerCount: Number(it.currentPlayerCount ?? 0),
-		status: (it.status ?? '').toString()
-	}
-}
-
 /** GET /match/manage-list?page=1&limit=10 */
 export const fetchMatchManageList = (page : number, limit : number = 10) : Promise<MatchPage> => {
 	return httpGet<any>('/match/manage-list', { page: page, limit: limit }).then((r : any) => {
 		// 兼容 { list, total } / { records, total } / 纯数组
 		const rawList : any[] = Array.isArray(r) ? r : ((r && (r.list || r.records)) || [])
 		const total : number = Number((r && r.total) ?? rawList.length)
-		const out : MatchVO[] = []
-		for (let i = 0; i < rawList.length; i++) {
-			out.push(toMatchVO(rawList[i]))
-		}
-		return { list: out, total: total, page: page, limit: limit }
+		return { list: rawList as MatchVO[], total: total, page: page, limit: limit }
 	})
 }
 
@@ -205,11 +149,7 @@ export const fetchMatchList = (
 		// 兼容纯数组 / { list, total } / { records, total } 三种返回
 		const rawList : any[] = Array.isArray(r) ? r : ((r && (r.list || r.records)) || [])
 		const total : number = Number((r && r.total) ?? rawList.length)
-		const out : MatchVO[] = []
-		for (let i = 0; i < rawList.length; i++) {
-			out.push(toMatchVO(rawList[i]))
-		}
-		return { list: out, total: total, page: page, limit: limit }
+		return { list: rawList as MatchVO[], total: total, page: page, limit: limit }
 	})
 }
 
@@ -263,6 +203,8 @@ export type MatchDetailVO = {
 	joined : boolean
 	joinedStatus : string
 	joinValid : boolean
+	deskNum : number        // 桌号
+	position : number       // 座位号
 	deskCount : number
 	currentPlayerCount : number
 	totalPlayerCount : number
@@ -278,77 +220,101 @@ export type MatchDetailVO = {
 	createTime : string
 }
 
-/** 比赛详情：GET /match/detail/{id}，未找到返回 null */
+/** 比赛详情：GET /match/detail/{id}；httpGet 已解包 object 业务载荷，业务失败走 reject */
 export const fetchMatchDetail = (id : string) : Promise<MatchDetailVO | null> => {
 	return httpGet<any>('/match/detail/' + id).then((r : any) => {
 		if (r == null) { return null }
-		const rawList : any[] = Array.isArray(r.deskPositionList) ? r.deskPositionList : []
-		const desks : DeskPositionVO[] = []
-		for (let i = 0; i < rawList.length; i++) {
-			const it = rawList[i]
-			desks.push({
-				deskNum: Number(it.deskNum ?? 0),
-				position: Number(it.position ?? 0),
-				ranking: Number(it.ranking ?? 0),
-				userId: Number(it.userId ?? 0),
-				avatar: (it.avatar ?? '').toString(),
-				username: (it.username ?? '').toString()
-			})
-		}
-		return {
-			id: r.id,
-			userRole: (r.userRole ?? '').toString(),
-			phoneBind: r.phoneBind == true,
-			storeId: Number(r.storeId ?? 0),
-			storeName: (r.storeName ?? '').toString(),
-			storeAddress: (r.storeAddress ?? '').toString(),
-			name: (r.name ?? '').toString(),
-			type: Number(r.type ?? 0),
-			typeName: (r.typeName ?? '').toString(),
-			currentLevel: Number(r.currentLevel ?? 0),
-			currentLevelRemainTime: (r.currentLevelRemainTime ?? '').toString(),
-			currentLevelRemainSeconds: Number(r.currentLevelRemainSeconds ?? 0),
-			minChips: Number(r.minChips ?? 0),
-			maxChips: Number(r.maxChips ?? 0),
-			preChips: Number(r.preChips ?? 0),
-			originChips: Number(r.originChips ?? 0),
-			scheduled: Number(r.scheduled ?? 0),
-			startTime: (r.startTime ?? '').toString(),
-			endTime: (r.endTime ?? '').toString(),
-			costTime: (r.costTime ?? '').toString(),
-			userReliveCount: Number(r.userReliveCount ?? 0),
-			userRemainReliveCount: Number(r.userRemainReliveCount ?? 0),
-			mushReliveCount: Number(r.mushReliveCount ?? 0),
-			remainReliveCount: Number(r.remainReliveCount ?? 0),
-			joinAmount: Number(r.joinAmount ?? 0),
-			joinTicket: Number(r.joinTicket ?? 0),
-			joinMonthTicket: Number(r.joinMonthTicket ?? 0),
-			joinInviteCard: Number(r.joinInviteCard ?? 0),
-			doubleRelive: r.doubleRelive == true,
-			rankOneScore: Number(r.rankOneScore ?? 0),
-			rankTwoScore: Number(r.rankTwoScore ?? 0),
-			rankThreeScore: Number(r.rankThreeScore ?? 0),
-			rankOneTicket: Number(r.rankOneTicket ?? 0),
-			rankTwoTicket: Number(r.rankTwoTicket ?? 0),
-			rankThreeTicket: Number(r.rankThreeTicket ?? 0),
-			joined: r.joined == true,
-			joinedStatus: (r.joinedStatus ?? '').toString(),
-			joinValid: r.joinValid == true,
-			deskCount: Number(r.deskCount ?? 0),
-			currentPlayerCount: Number(r.currentPlayerCount ?? 0),
-			totalPlayerCount: Number(r.totalPlayerCount ?? 0),
-			avgChips: Number(r.avgChips ?? 0),
-			totalChips: Number(r.totalChips ?? 0),
-			deskPositionList: desks,
-			userBalance: Number(r.userBalance ?? 0),
-			userTicket: Number(r.userTicket ?? 0),
-			userMonthTicket: Number(r.userMonthTicket ?? 0),
-			userInviteCard: Number(r.userInviteCard ?? 0),
-			creatorId: Number(r.creatorId ?? 0),
-			status: (r.status ?? '').toString(),
-			createTime: (r.createTime ?? '').toString()
-		}
+		return r as MatchDetailVO
 	})
+}
+
+/** 比赛报名详情：GET /match/detail-to-join/{id}（字段与 /match/detail/{id} 一致，带当前用户资产/报名状态） */
+export const fetchMatchDetailToJoin = (id : string) : Promise<MatchDetailVO | null> => {
+	return httpGet<any>('/match/detail-to-join/' + id).then((r : any) => {
+		if (r == null) { return null }
+		return r as MatchDetailVO
+	})
+}
+
+/** 比赛报名：POST /match-user/{matchId}/join */
+export const joinMatch = (matchId : string, payType : string, deskNum : number, position : number) : Promise<void> => {
+	return httpPost('/match-user/' + matchId + '/join', {
+		payType: payType,
+		deskNum: deskNum,
+		position: position
+	}).then((): void => {})
+}
+
+/* ---------------- 比赛管理动作 ---------------- */
+const matchAction = (path : string) : Promise<void> => {
+	return httpPost(path, {}).then((): void => {})
+}
+
+/** 暂停比赛：POST /match/{id}/pause */
+export const pauseMatch = (id : string) : Promise<void> => matchAction('/match/' + id + '/pause')
+
+/** 恢复比赛：POST /match/{id}/stop-pause */
+export const stopPauseMatch = (id : string) : Promise<void> => matchAction('/match/' + id + '/stop-pause')
+
+/** 重新开始：POST /match/{id}/reset */
+export const resetMatch = (id : string) : Promise<void> => matchAction('/match/' + id + '/reset')
+
+/** 下一级别：POST /match/{matchId}/next-level */
+export const matchNextLevel = (id : string) : Promise<void> => matchAction('/match/' + id + '/next-level')
+
+/** 上一级别：POST /match/{matchId}/previous-level */
+export const matchPrevLevel = (id : string) : Promise<void> => matchAction('/match/' + id + '/previous-level')
+
+/* ---------------- 参赛用户管理动作 ---------------- */
+/** 出局：POST /match-user/{matchId}/kick-out/{userId} */
+export const kickOutUser = (matchId : string, userId : number) : Promise<void> => {
+	return httpPost('/match-user/' + matchId + '/kick-out/' + userId, {}).then((): void => {})
+}
+
+/** 出桌：POST /match-user/{matchId}/leave-desk/{userId} */
+export const leaveDesk = (matchId : string, userId : number) : Promise<void> => {
+	return httpPost('/match-user/' + matchId + '/leave-desk/' + userId, {}).then((): void => {})
+}
+
+/** 回桌：POST /match-user/{matchId}/pull-back/{userId} */
+export const pullBackUser = (matchId : string, userId : number) : Promise<void> => {
+	return httpPost('/match-user/' + matchId + '/pull-back/' + userId, {}).then((): void => {})
+}
+
+/** 设置摸鱼分：POST /match-user/{matchId}/happy-score，body { userId, score } */
+export const setHappyScore = (matchId : string, userId : number, score : number) : Promise<void> => {
+	return httpPost('/match-user/' + matchId + '/happy-score', {
+		userId: userId,
+		score: score
+	}).then((): void => {})
+}
+
+/** 蘑菇复活：POST /match-user/{matchId}/relive，body { payType, reviveCount }（reviveCount：1=1倍 / 2=2倍，payType：BALANCE / TICKET） */
+export const reliveUser = (matchId : string, payType : string, reviveCount : number) : Promise<void> => {
+	return httpPost('/match-user/' + matchId + '/relive', {
+		payType: payType,
+		reviveCount: reviveCount
+	}).then((): void => {})
+}
+
+/** 结束比赛名次项（对应后端 MatchUserRankingItem） */
+export type MatchUserRankingItem = {
+	userId : number
+	ranking : number
+}
+
+/** 结束比赛前取当前名次列表：GET /match-user/{matchId}/ranking（返回 MatchUserVO[]，异常时后端可能报错） */
+export const fetchMatchRanking = (matchId : string) : Promise<MatchUserVO[]> => {
+	return httpGet('/match-user/' + matchId + '/ranking').then((r : any) => {
+		return Array.isArray(r) ? (r as MatchUserVO[]) : []
+	})
+}
+
+/** 结束比赛并提交最终名次：POST /match/{id}/end-ranking，body { rankingList } */
+export const endMatchRanking = (id : string, rankingList : MatchUserRankingItem[]) : Promise<void> => {
+	return httpPost('/match/' + id + '/end-ranking', {
+		rankingList: rankingList
+	}).then((): void => {})
 }
 
 /* ---------------- 参赛用户列表（GET /match-user/{matchId}/list） ---------------- */

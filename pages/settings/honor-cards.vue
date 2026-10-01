@@ -9,7 +9,10 @@
 		<!-- ============ 空态 ============ -->
 		<view v-else-if="cards.length == 0" class="state-box">
 			<text class="state-icon">🏅</text>
-			<text class="state-text">暂无荣誉卡，赢得比赛后即可获得</text>
+			<text class="state-text">{{ adminUserId > 0 ? '该用户暂无荣誉卡' : '暂无荣誉卡，赢得比赛后即可获得' }}</text>
+			<view v-if="adminUserId > 0" class="add-btn add-btn-empty" @tap="onTapAddHonor">
+				<text class="add-btn-text">＋ 添加荣誉</text>
+			</view>
 		</view>
 
 		<!-- ============ 内容 ============ -->
@@ -29,10 +32,15 @@
 				<text class="preview-name">{{ currentCard ? currentCard.name : '未使用背景卡' }}</text>
 			</view>
 
+			<!-- 管理员：给该用户添加荣誉 -->
+			<view v-if="adminUserId > 0" class="add-btn" @tap="onTapAddHonor">
+				<text class="add-btn-text">＋ 添加荣誉</text>
+			</view>
+
 			<!-- 荣誉卡列表 -->
 			<view class="section-head">
-				<text class="section-title">我获得的荣誉卡（{{ cards.length }}）</text>
-				<text class="section-tip">点击选用</text>
+				<text class="section-title">{{ adminUserId > 0 ? '该用户的荣誉卡' : '我获得的荣誉卡' }}（{{ cards.length }}）</text>
+				<text v-if="adminUserId == 0" class="section-tip">点击选用</text>
 			</view>
 
 			<view class="card-list">
@@ -53,35 +61,86 @@
 				</view>
 			</view>
 
-			<!-- 不使用 -->
-			<view class="none-btn" @tap="onTapNone">
+			<!-- 不使用（仅本人模式） -->
+			<view v-if="adminUserId == 0" class="none-btn" @tap="onTapNone">
 				<text class="none-btn-text">不使用背景卡</text>
 			</view>
 		</template>
+
+		<!-- ============ 管理员：添加荣誉弹层 ============ -->
+		<view v-if="dlg.visible" class="dlg-overlay" @tap="onTapDlgMask">
+			<view class="dlg-card" @tap.stop="">
+				<view class="dlg-head">
+					<text class="dlg-title">添加荣誉</text>
+					<text class="dlg-sub">从荣誉列表中选择一项授予该用户</text>
+				</view>
+
+				<scroll-view class="dlg-honor-list" scroll-y>
+					<view v-if="dlgLoading" class="dlg-state">
+						<text class="dlg-state-text">荣誉加载中…</text>
+					</view>
+					<view v-else-if="honorDefs.length == 0" class="dlg-state">
+						<text class="dlg-state-text">暂无可选荣誉</text>
+					</view>
+					<view
+						v-for="h in honorDefs"
+						:key="h.id"
+						class="dlg-honor-row"
+						:class="{ 'dlg-honor-row-on': dlg.honorId == h.id }"
+						@tap="onPickHonorDef(h)"
+					>
+						<image v-if="h.imageUrl.length > 0" class="dlg-honor-img" :src="h.imageUrl" mode="aspectFill"></image>
+						<view v-else class="dlg-honor-img dlg-honor-img-empty">
+							<text class="dlg-honor-img-text">🏅</text>
+						</view>
+						<text class="dlg-honor-name">{{ h.honorName }}</text>
+						<view class="dlg-honor-check" :class="{ 'dlg-honor-check-on': dlg.honorId == h.id }">
+							<text v-if="dlg.honorId == h.id" class="dlg-check-text">✓</text>
+						</view>
+					</view>
+				</scroll-view>
+
+				<view class="dlg-btns">
+					<view class="dlg-btn dlg-btn-cancel" @tap="onTapDlgCancel">
+						<text class="dlg-btn-text dlg-btn-cancel-text">取消</text>
+					</view>
+					<view class="dlg-btn dlg-btn-ok" @tap="onTapDlgConfirm">
+						<text class="dlg-btn-text dlg-btn-ok-text">确认添加</text>
+					</view>
+				</view>
+			</view>
+		</view>
 
 		<view class="footer-blank"></view>
 	</scroll-view>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { fetchMyHonorCards, getMyHonorCard, setMyHonorCard, useMyHonorCard, unuseAllHonorCards } from '@/common/honor-card-data'
+import { ref } from 'vue'
+import { fetchMyHonorCards, fetchUserHonorCards, grantUserHonor, getMyHonorCard, setMyHonorCard, useMyHonorCard, unuseAllHonorCards } from '@/common/honor-card-data'
 import type { MyHonorCard } from '@/common/honor-card-data'
+import { fetchHonorList } from '@/common/honor-api'
+import type { HonorVO } from '@/common/honor-api'
 
 const cards = ref<MyHonorCard[]>([])
 const currentCard = ref<MyHonorCard | null>(getMyHonorCard())
 const loading = ref(true)
 const submitting = ref(false)
 
+// 管理员模式：url 带 userId 时查看/管理该用户的荣誉（普通入口不带此参数）
+const adminUserId = ref<number>(0)
+
 /* ---------------- 加载列表 ---------------- */
-// 服务端以 defaultActive == 'A' 标记当前展示卡
+// 本人模式：GET /user-honor/my-list；管理员模式：GET /user-honor/list?userId=
 const load = () : void => {
 	loading.value = true
-	fetchMyHonorCards().then((list) => {
+	const req = adminUserId.value > 0 ? fetchUserHonorCards(adminUserId.value) : fetchMyHonorCards()
+	req.then((list) => {
 		cards.value = list
 		const act = list.filter((c) => { return c.active })
 		currentCard.value = act.length > 0 ? act[0] : null
-		if (currentCard.value != null) { setMyHonorCard(currentCard.value) }
+		// 本地缓存仅用于本人模式"我的背景卡"即时展示，管理员模式不动缓存
+		if (adminUserId.value == 0 && currentCard.value != null) { setMyHonorCard(currentCard.value) }
 		loading.value = false
 	}).catch((e : any) => {
 		loading.value = false
@@ -89,11 +148,16 @@ const load = () : void => {
 	})
 }
 
-onMounted(() => { load() })
+onLoad((q : any) => {
+	adminUserId.value = Number((q && q.userId) || 0)
+	if (adminUserId.value > 0) { uni.setNavigationBarTitle({ title: '用户荣誉卡' }) }
+	load()
+})
 
-/* ---------------- 选用 / 取消 ---------------- */
+/* ---------------- 选用 / 取消（仅本人模式） ---------------- */
 // 先调接口，成功后更新本地状态 + 缓存
 const onTapCard = (c : MyHonorCard) : void => {
+	if (adminUserId.value > 0) { return }	// 管理员查看模式：use 接口只对登录本人生效，不开放
 	if (submitting.value) { return }
 	if (c.active) { return }		// 已是展示中的卡，重复点击不处理
 	submitting.value = true
@@ -112,6 +176,7 @@ const onTapCard = (c : MyHonorCard) : void => {
 }
 
 const onTapNone = () : void => {
+	if (adminUserId.value > 0) { return }
 	if (submitting.value) { return }
 	if (currentCard.value == null) { return }
 	submitting.value = true
@@ -126,6 +191,42 @@ const onTapNone = () : void => {
 	}).catch((e : any) => {
 		submitting.value = false
 		uni.showToast({ title: e && e.message ? e.message : '操作失败，请重试', icon: 'none' })
+	})
+}
+
+/* ============== 管理员：添加荣誉弹层 ============== */
+type AddHonorState = { visible : boolean, honorId : number }
+const dlg = ref<AddHonorState>({ visible: false, honorId: 0 })
+const dlgLoading = ref(false)
+const honorDefs = ref<HonorVO[]>([])
+const onTapAddHonor = () : void => {
+	dlg.value = { visible: true, honorId: 0 }
+	if (honorDefs.value.length > 0) { return }	// 定义列表全局复用，拉一次即可
+	dlgLoading.value = true
+	fetchHonorList(1, 100).then((p) => {
+		honorDefs.value = p.list
+		dlgLoading.value = false
+	}).catch(() => {
+		dlgLoading.value = false
+		uni.showToast({ title: '荣誉列表加载失败', icon: 'none' })
+	})
+}
+const onPickHonorDef = (h : HonorVO) : void => { dlg.value.honorId = h.id }
+const onTapDlgMask = () : void => { dlg.value.visible = false }
+const onTapDlgCancel = () : void => { dlg.value.visible = false }
+const onTapDlgConfirm = () : void => {
+	if (submitting.value) { return }
+	if (dlg.value.honorId == 0) { uni.showToast({ title: '请先选择荣誉', icon: 'none' }); return }
+	submitting.value = true
+	// POST /user-honor/grant；成功后重新拉取，以服务端为准
+	grantUserHonor(adminUserId.value, dlg.value.honorId).then(() => {
+		submitting.value = false
+		dlg.value.visible = false
+		uni.showToast({ title: '已添加荣誉', icon: 'none' })
+		load()
+	}).catch((e : any) => {
+		submitting.value = false
+		uni.showToast({ title: e && e.message ? e.message : '添加失败，请重试', icon: 'none' })
 	})
 }
 </script>
@@ -271,6 +372,146 @@ const onTapNone = () : void => {
 .none-btn-text {
 	font-size: 25rpx;
 	color: #9AA19E;
+}
+
+/* ============ 管理员：添加荣誉按钮 ============ */
+.add-btn {
+	height: 88rpx;
+	background-color: #E8C275;
+	border-radius: 22rpx;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 30rpx;
+	box-shadow: 0 6rpx 18rpx rgba(232, 194, 117, 0.22);
+}
+.add-btn-text {
+	font-size: 27rpx;
+	color: #14100A;
+	font-weight: 700;
+}
+.add-btn-empty {
+	margin-top: 30rpx;
+	margin-bottom: 0;
+	padding: 0 48rpx;
+}
+
+/* ============ 添加荣誉弹层 ============ */
+.dlg-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(5, 6, 6, 0.72);
+	z-index: 100;
+	justify-content: center;
+	align-items: center;
+}
+.dlg-card {
+	width: 620rpx;
+	background-color: #171A19;
+	border: 1rpx solid #242827;
+	border-radius: 20rpx;
+	padding: 28rpx;
+}
+.dlg-title {
+	font-size: 30rpx;
+	color: #EDEFEE;
+	font-weight: 700;
+}
+.dlg-sub {
+	font-size: 21rpx;
+	color: #6E7573;
+	margin-top: 6rpx;
+}
+.dlg-honor-list {
+	max-height: 560rpx;
+	margin-top: 20rpx;
+}
+.dlg-state {
+	padding: 60rpx 0;
+	align-items: center;
+}
+.dlg-state-text {
+	font-size: 22rpx;
+	color: #6E7573;
+}
+.dlg-honor-row {
+	flex-direction: row;
+	align-items: center;
+	padding: 16rpx 8rpx;
+	border-bottom: 1rpx solid #242827;
+}
+.dlg-honor-row-on {
+	background-color: #1D1C15;
+}
+.dlg-honor-img {
+	width: 150rpx;
+	height: 56rpx;
+	border-radius: 8rpx;
+	background-color: #0F1211;
+	flex-shrink: 0;
+}
+.dlg-honor-img-empty {
+	align-items: center;
+	justify-content: center;
+}
+.dlg-honor-img-text {
+	font-size: 26rpx;
+}
+.dlg-honor-name {
+	flex: 1;
+	font-size: 26rpx;
+	color: #EDEFEE;
+	font-weight: 600;
+	margin-left: 16rpx;
+}
+.dlg-honor-check {
+	width: 40rpx;
+	height: 40rpx;
+	border-radius: 20rpx;
+	border: 2rpx solid #3A3E3D;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+.dlg-honor-check-on {
+	border-color: #E8C275;
+	background-color: #E8C275;
+}
+.dlg-check-text {
+	font-size: 24rpx;
+	color: #14100A;
+	font-weight: 700;
+}
+.dlg-btns {
+	flex-direction: row;
+	margin-top: 24rpx;
+}
+.dlg-btn {
+	flex: 1;
+	height: 84rpx;
+	border-radius: 18rpx;
+	align-items: center;
+	justify-content: center;
+}
+.dlg-btn-cancel {
+	background-color: #1A1E1D;
+	border: 1rpx solid #2A2F2D;
+	margin-right: 20rpx;
+}
+.dlg-btn-ok {
+	background-color: #E8C275;
+}
+.dlg-btn-text {
+	font-size: 26rpx;
+}
+.dlg-btn-cancel-text {
+	color: #9AA19E;
+}
+.dlg-btn-ok-text {
+	color: #14100A;
+	font-weight: 700;
 }
 
 .footer-blank { height: 60rpx; }

@@ -6,8 +6,6 @@
 		@scrolltolower="onLoadMore"
 	>
 		<!-- ============ 时间范围筛选 ============ -->
-		<!-- 5 档：全部 / 今日 / 本周(近 7 日) / 本月(自然月) / 近 30 日
-		     映射为 startDate/endDate 传给接口，由服务端过滤 -->
 		<view class="filter-block">
 			<scroll-view class="filter-pills" :scroll-x="true" :show-scrollbar="false">
 				<view
@@ -50,6 +48,8 @@
 				</view>
 				<view class="record-main">
 					<text class="record-source">{{ recordLabel(r.type) }}</text>
+					<text v-if="r.storeName != null && r.storeName != ''" class="record-store">{{ r.storeName }}</text>
+					<text v-if="r.operatorName != null && r.operatorName != ''" class="record-operator">操作人 {{ r.operatorName }}</text>
 					<text class="record-date">{{ r.createTime }}</text>
 				</view>
 				<view class="record-right">
@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { fetchJiudeRecords } from '@/common/jiude-api'
+import { fetchJiudeBilling } from '@/common/jiude-api'
 import type { PointsRecordVO } from '@/common/jiude-api'
 
 /* ---------------- 数据（直接消费后端 PointsRecordVO，不做映射） ---------------- */
@@ -84,6 +84,9 @@ const page = ref<number>(1)
 const hasMore = ref<boolean>(true)
 const firstLoading = ref<boolean>(true)
 const loadingMore = ref<boolean>(false)
+
+// 从 url 取 userId，管理端查看指定用户的酒德账单
+const targetUserId = ref<number>(0)
 
 /* ---------------- 时间范围筛选（→ startDate/endDate 传服务端） ---------------- */
 type RangeKey = 'all' | 'today' | 'week' | 'month' | '30days'
@@ -112,7 +115,6 @@ const setRange = (k : RangeKey) : void => {
 		startDate.value = fmtDay(now)
 		endDate.value = fmtDay(now)
 	} else if (k == 'week') {
-		// "本周" = 今日往前 6 天到今天（近 7 日）
 		startDate.value = fmtDay(new Date(now.getTime() - 6 * 86400000))
 		endDate.value = fmtDay(now)
 	} else if (k == 'month') {
@@ -144,7 +146,7 @@ const load = (reset : boolean) : void => {
 		loadingMore.value = true
 	}
 	const target : number = reset ? 1 : page.value + 1
-	fetchJiudeRecords(target, PAGE_LIMIT, startDate.value, endDate.value).then((list : PointsRecordVO[]) => {
+	fetchJiudeBilling(targetUserId.value, target, PAGE_LIMIT, startDate.value, endDate.value).then((list : PointsRecordVO[]) => {
 		records.value = reset ? list : records.value.concat(list)
 		page.value = target
 		// 以本页实际返回条数判断是否还有下一页
@@ -173,7 +175,9 @@ const moreText = computed<string>((): string => {
 	return '上拉加载更多'
 })
 
-onLoad((): void => {
+onLoad((q : any) => {
+	targetUserId.value = Number((q && q.userId) || 0)
+	if (targetUserId.value > 0) { uni.setNavigationBarTitle({ title: '用户酒德账单' }) }
 	load(true)
 })
 
@@ -220,41 +224,33 @@ const recordTextClass = (type : number) : string => {
 </script>
 
 <style scoped>
+	/* 根 scroll-view 必须固定高度：滚动发生在内部，@scrolltolower 才能触发；
+	   min-height 会让滚动冒到页面层，导致触底加载失效 */
 	.page {
 		box-sizing: border-box;
 		background-image: linear-gradient(180deg, #0E1110 0%, #0A0C0B 40%, #0B0D0C 100%);
-		min-height: 100vh;
+		height: 100vh;
 		padding: 0 24rpx;
 	}
+	/* #ifdef H5 */
+	/* H5 端 100vh 含导航栏与 tabBar，需扣除才是内容区真实高度 */
+	.page {
+		height: calc(100vh - var(--window-top) - var(--window-bottom));
+	}
+	/* #endif */
 
-	/* ============ 筛选块：时间范围 / 类型 ============ */
+	/* ============ 筛选块：时间范围 ============ */
 	.filter-block {
 		margin: 20rpx 0 0;
 	}
 	.filter-block:first-child {
 		margin-top: 8rpx;
 	}
-	.filter-label {
-		flex-direction: row;
-		align-items: center;
-		margin-bottom: 14rpx;
-	}
-	.filter-label-bar {
-		width: 6rpx;
-		height: 24rpx;
-		background-image: linear-gradient(180deg, #F5D98E, #C89B3C);
-		border-radius: 6rpx;
-		margin-right: 12rpx;
-	}
-	.filter-label-text { font-size: 26rpx; color: #EDEFEE; font-weight: 700; }
-
-	/* filter-pills：默认 = 横向 scroll-view；filter-pills-static = 横向 flex 排版，不滚动 */
 	.filter-pills {
 		flex-direction: row;
 		align-items: stretch;
 		padding: 0 4rpx;
 	}
-	.filter-pills-static { flex-direction: row; }
 	.filter-pill {
 		flex-direction: column;
 		align-items: center;
@@ -352,7 +348,9 @@ const recordTextClass = (type : number) : string => {
 
 	.record-main { flex: 1; flex-direction: column; }
 	.record-source { font-size: 26rpx; color: #EDEFEE; font-weight: 500; }
-	.record-date { font-size: 20rpx; color: #7E8281; margin-top: 6rpx; }
+	.record-store { font-size: 22rpx; color: #9AA19E; margin-top: 6rpx; }
+	.record-operator { font-size: 20rpx; color: #7AB6F2; margin-top: 4rpx; }
+	.record-date { font-size: 20rpx; color: #7E8281; margin-top: 4rpx; }
 
 	.record-right { flex-direction: column; align-items: flex-end; }
 	.record-amount { font-size: 30rpx; font-weight: 700; }

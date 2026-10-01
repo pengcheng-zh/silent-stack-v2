@@ -46,35 +46,7 @@ export const updatePassword = (password : string) : Promise<any> => {
 
 /** 更新用户资料（当前先用于改昵称；后续扩头像等字段直接加参数即可） */
 export const updateProfile = (patch : { username ?: string; avatar ?: string }) : Promise<any> => {
-	return httpPost('/user/update-profile', patch)
-}
-
-/** 拉取当前用户最新资料，返回后写入 storage 并透出 */
-export const fetchAndSaveProfile = () : Promise<LoginResult | null> => {
-	return httpGet<LoginResult>('/user/my-profile').then((r : any) => {
-		if (!r) { return null }
-		// 后端可能在 data 里包一层
-		const data : any = r.data || r
-		const profile : LoginResult = {
-			id: data.id || '',
-			userNo: data.userNo || '',
-			username: data.username || '',
-			avatar: data.avatar || '',
-			authToken: data.authToken || '',
-			roleId: data.roleId || 0,
-			phone: data.phone || '',
-			expireTime: data.expireTime || ''
-		}
-		// 保留已有的 token（后端可能不返回 authToken）
-		const cur = getLoginResult()
-		if (cur && (!profile.authToken || profile.authToken.length == 0)) {
-			profile.authToken = cur.authToken
-		}
-		saveLoginResult(profile)
-		return profile
-	}).catch(() => {
-		return getLoginResult()
-	})
+	return httpPost('/user/profile-update', patch)
 }
 
 /* ---------------- 我的信息（GET /user/info，与后端 CustomerVO 字段一一对应） ---------------- */
@@ -182,6 +154,57 @@ export const fetchSimpleUserList = (keyword : string) : Promise<UserSimpleListRo
 		}
 		return out
 	})
+}
+
+/* ---------------- 后台用户列表（管理员页用，CustomerVO 全量字段） ---------------- */
+export type AdminUserPage = {
+	list : CustomerVO[]
+	total : number          // 命中总数（无关键词时 = 全量用户数）
+}
+
+/** 后台用户列表：GET /user/list?keyword=&page=&limit= */
+export const fetchAdminUserList = (keyword : string, page : number, limit : number) : Promise<AdminUserPage> => {
+	const params : Record<string, any> = { page: page, limit: limit }
+	const kw : string = keyword.trim()
+	if (kw.length > 0) { params.keyword = kw }
+	return httpGet<any>('/user/list', params).then((r : any) => {
+		// 兼容数组 / { list, total } / { records, total } 几种返回形态
+		const body : any = Array.isArray(r) ? r : (r || {})
+		const arr : any = Array.isArray(body) ? body : (body.list || body.records || [])
+		const list : CustomerVO[] = []
+		for (let i = 0; i < arr.length; i++) { list.push(arr[i] as CustomerVO) }
+		const total : number = Array.isArray(body)
+			? list.length
+			: (Number(body.total ?? body.totalCount ?? 0) || list.length)
+		return { list: list, total: total }
+	})
+}
+
+/* ---------------- 余额调账（后台用户页用） ---------------- */
+/** POST /balance/update 入参 */
+export type BalanceUpdateParams = {
+	storeId : number           // 门店 id（月票/直通函等用户级资产传 0）
+	userId : number            // 用户 id
+	amount : number            // 变动数量（正整数）
+	balanceType : string       // 资产类型：balance / ticket / points / amount / totalAmount / comboA / comboB / comboC / monthTicket / inviteCard
+	balanceAction : string     // 动作：gift（赠送）/ deduct（扣减）
+}
+
+/** 余额调账：POST /balance/update */
+export const updateBalance = (data : BalanceUpdateParams) : Promise<void> => {
+	return httpPost<void>('/balance/update', data)
+}
+
+/* ---------------- 绑定手机号（后台用户页用） ---------------- */
+/** POST /user/bind-phone 入参 */
+export type PhoneBindParams = {
+	userId : number            // 用户 id
+	phone : string             // 新手机号
+}
+
+/** 绑定/修改手机号：POST /user/bind-phone */
+export const bindPhone = (data : PhoneBindParams) : Promise<void> => {
+	return httpPost<void>('/user/bind-phone', data)
 }
 
 /* ---------------- 登录态存取 ---------------- */

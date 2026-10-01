@@ -33,54 +33,28 @@
 			</view>
 		</view>
 
-		<!-- ============ 用户统计条 ============ -->
-		<view class="summary">
-			<view class="summary-stat">
-				<text class="summary-num">{{ visible.length }}</text>
-				<text class="summary-key">当前展示</text>
-			</view>
-			<view class="summary-divider"></view>
-			<view class="summary-stat">
-				<text class="summary-num summary-num-total">{{ users.length }}</text>
-				<text class="summary-key">总用户</text>
-			</view>
-			<view class="summary-divider"></view>
-			<view class="summary-stat">
-				<text class="summary-num">{{ stats.searchHits }}</text>
-				<text class="summary-key">{{ keyword.length > 0 ? '匹配' : '上次搜索' }}</text>
-			</view>
-			<view class="summary-state">
-				<text class="summary-state-text">{{ searching ? '搜索中…' : (keyword.length > 0 ? ('关键词：' + keyword) : '在线') }}</text>
-			</view>
-		</view>
-
 		<!-- ============ 用户卡片列表 ============ -->
 		<view
 			v-for="u in visible"
 			:key="u.id"
 			class="ucard"
-			:style="'border-left-color:' + tierColorOf(u) + ';border-left-width:6rpx;'"
+			:style="'border-left-width:6rpx;'"
 		>
 
-			<!-- 顶部身份区：头像 + 名称 + tier pill -->
+			<!-- 顶部身份区：头像 + 昵称 + 编号/手机号 -->
 			<view class="ucard-top">
-				<view class="avatar" :style="'border-color:' + tierColorOf(u) + ';'">
-					<text class="avatar-text">{{ avatarOf(u) }}</text>
-					<view class="avatar-tier" :style="'background-color:' + tierColorOf(u) + ';'">
-						<text class="avatar-tier-text">{{ tierSuitOf(u) }}</text>
-					</view>
+				<view class="avatar">
+					<image v-if="u.avatar" :src="u.avatar" class="avatar-img" mode="aspectFill" />
+					<text v-else class="avatar-text">{{ avatarText(u) }}</text>
 				</view>
 				<view class="head">
 					<view class="head-name-row">
-						<text class="u-name">{{ u.name }}</text>
-						<view class="tier-pill" :style="'background-color:' + tierColorOf(u) + '22;color:' + tierColorOf(u) + ';border-color:' + tierColorOf(u) + '59;'">
-							<text class="tier-pill-text">{{ tierLabelOf(u) }}</text>
-						</view>
+						<text class="u-name">{{ u.username }}</text>
 					</view>
-					<text class="u-id">{{ u.id }} · {{ u.city }}</text>
-					<view class="head-phone">
+					<view class="u-meta-row">
+						<text class="u-id">{{ u.userNo }}</text>
 						<view class="phone-pill">
-							<text class="phone-pill-text">{{ maskPhone(u.phone) }}</text>
+							<text class="phone-pill-text">手机号：{{ u.phone }}</text>
 						</view>
 					</view>
 				</view>
@@ -90,72 +64,81 @@
 			<view class="stat-grid">
 				<view class="stat-cell">
 					<text class="stat-label">段位分</text>
-					<text class="stat-val stat-val-main">{{ u.tierPoints }}</text>
+					<text class="stat-val stat-val-main">{{ u.rankingScore }}</text>
 				</view>
 				<view class="stat-cell">
 					<text class="stat-label">月票</text>
-					<text class="stat-val">{{ u.monthlyTicket }}<text class="stat-suffix">张</text></text>
+					<text class="stat-val">{{ u.monthTicket }}<text class="stat-suffix">张</text></text>
 				</view>
 				<view class="stat-cell">
 					<text class="stat-label">直通函</text>
-					<text class="stat-val">{{ u.directTicket }}<text class="stat-suffix">张</text></text>
+					<text class="stat-val">{{ u.inviteCard }}<text class="stat-suffix">张</text></text>
 				</view>
 			</view>
 
-			<!-- 资产速览：5 项高优资产横排 chip -->
-			<view class="asset-row">
-				<view class="asset-chip asset-chip-money">
-					<text class="asset-key">金额</text>
-					<text class="asset-val">¥{{ fmtNum(u.balance) }}</text>
+			<!-- 各门店资产：余额 / 门票 / 积分 / 酒德 / 成长 + 套餐券 -->
+			<view class="store-block" v-for="balance in (u.balanceList ?? [])" :key="balance.storeId">
+				<view class="store-head">
+					<text class="store-name">{{ balance.storeName }}</text>
 				</view>
-				<view class="asset-chip">
-					<text class="asset-key">门票</text>
-					<text class="asset-val">{{ u.ticketCount }}</text>
+				<view class="store-grid" v-if="balance.storeType == 'silent'">
+					<view class="store-cell">
+						<text class="store-label">余额</text>
+						<text class="store-val store-val-money">{{ fmtNum(balance.balance) }}</text>
+					</view>
+					<view class="store-cell">
+						<text class="store-label">门票</text>
+						<text class="store-val">{{ balance.ticket }}</text>
+					</view>
+					
 				</view>
-				<view class="asset-chip">
-					<text class="asset-key">积分</text>
-					<text class="asset-val">{{ u.points }}</text>
-				</view>
-				<view class="asset-chip asset-chip-jd">
-					<text class="asset-key">酒德</text>
-					<text class="asset-val">{{ u.jiudeBalance }}</text>
-				</view>
-				<view class="asset-chip">
-					<text class="asset-key">成长</text>
-					<text class="asset-val">{{ u.jiudeGrowth }}</text>
+				<view class="store-grid" v-if="balance.storeType == 'jiude'">
+					<view class="store-cell">
+						<text class="store-label">积分</text>
+						<text class="store-val">{{ balance.points }}</text>
+					</view>
+					<view class="store-cell">
+						<text class="store-label">余额</text>
+						<text class="store-val store-val-jd">{{ balance.amount }}</text>
+					</view>
+					<view class="store-cell">
+						<text class="store-label">成长值</text>
+						<text class="store-val">{{ balance.totalAmount }}</text>
+					</view>
+					<view class="store-cell">
+						<text class="store-label">套餐A</text>
+						<text class="store-val">{{ balance.comboA }}</text>
+					</view>
+					<view class="store-cell">
+						<text class="store-label">套餐B</text>
+						<text class="store-val">{{ balance.comboB }}</text>
+					</view>
+					<view class="store-cell">
+						<text class="store-label">套餐C</text>
+						<text class="store-val">{{ balance.comboC }}</text>
+					</view>
 				</view>
 			</view>
-
-			<!-- 套餐券 + 大师分 -->
-			<view class="voucher-row">
-				<view class="v-chip v-chip-a">
-					<text class="v-key">券A</text>
-					<text class="v-val">×{{ u.jiudeA }}</text>
-				</view>
-				<view class="v-chip v-chip-b">
-					<text class="v-key">券B</text>
-					<text class="v-val">×{{ u.jiudeB }}</text>
-				</view>
-				<view class="v-chip v-chip-c">
-					<text class="v-key">券C</text>
-					<text class="v-val">×{{ u.jiudeC }}</text>
-				</view>
-				<view class="master-chip" v-if="u.masterScore > 0">
-					<text class="master-key">大师分</text>
-					<text class="master-val">{{ u.masterScore }}</text>
-				</view>
+			<view class="store-empty" v-if="!u.balanceList || u.balanceList.length == 0">
+				<text class="store-empty-text">暂无门店资产</text>
 			</view>
 
 			<!-- 操作 4 入口 -->
 			<view class="actions">
-				<view class="act act-primary" @tap="onTapAdjust(u)">
+				<view class="act act-primary" @tap="onTapAdjust(u, 'silent')">
 					<text class="act-text act-text-primary">调账</text>
+				</view>
+				<view class="act act-primary" @tap="onTapAdjust(u, 'jiude')">
+					<text class="act-text act-text-primary">酒德</text>
 				</view>
 				<view class="act" @tap="onTapHonor(u)">
 					<text class="act-text">荣誉</text>
 				</view>
 				<view class="act" @tap="onTapBill(u)">
 					<text class="act-text">账单</text>
+				</view>
+				<view class="act" @tap="onTapJiudeBill(u)">
+					<text class="act-text">酒德账单</text>
 				</view>
 				<view class="act" @tap="onTapPhone(u)">
 					<text class="act-text">改手机号</text>
@@ -172,7 +155,7 @@
 			<text v-if="!searching && keyword.length > 0" class="list-empty-sub">试试其他关键词，或清空搜索查看全部</text>
 		</view>
 		<view v-else class="list-foot">
-			<text class="list-foot-text">{{ loading ? '加载中…' : (noMore ? '— 到底了 —' : '上拉加载更多') }}</text>
+			<text class="list-foot-text">{{ loading ? '加载中…' : (noMore ? ('— 共 ' + total + ' 人 —') : '上拉加载更多') }}</text>
 		</view>
 
 		<view class="footer-blank"></view>
@@ -182,15 +165,23 @@
 	<view v-if="adj.visible" class="dlg-overlay" @tap="onTapAdjMask">
 		<view class="dlg-card dlg-card-tall" @tap.stop="">
 			<view class="dlg-head">
-				<text class="dlg-title">调账 · {{ adj.target?.name ?? '' }}</text>
+				<text class="dlg-title">调账 · {{ adj.target?.username ?? '' }}</text>
 				<text class="dlg-sub">赠送/扣减后即时生效，操作不可撤销</text>
+			</view>
+
+			<view class="field">
+				<text class="field-label">门店</text>
+				<view class="picker-box" @tap="onOpenStoreSelect">
+					<text class="picker-text" :class="{ 'picker-text-empty': adjStore == null }">{{ adjStore != null ? adjStore.name : '选择门店' }}</text>
+					<text class="picker-arrow">▾</text>
+				</view>
 			</view>
 
 			<view class="field">
 				<text class="field-label">资产</text>
 				<view class="asset-grid">
 					<view
-						v-for="a in ASSET_META"
+						v-for="a in BAL_META"
 						:key="a.key"
 						class="asset-chip-btn"
 						:class="{ 'asset-on': adj.assetKey === a.key }"
@@ -239,125 +230,71 @@
 				/>
 			</view>
 
-			<view class="field">
-				<text class="field-label">备注</text>
-				<input
-					class="field-input"
-					type="text"
-					:value="adj.reason"
-					placeholder="必填，便于追溯"
-					placeholder-class="field-ph"
-					@input="onAdjReasonInput"
-				/>
-			</view>
-
 			<text v-if="adj.error.length > 0" class="dlg-error">{{ adj.error }}</text>
 
 			<view class="dlg-btns">
-				<view class="dlg-btn dlg-btn-cancel" @tap="onTapAdjCancel">
-					<text class="dlg-btn-text dlg-btn-cancel-text">取消</text>
+					<view class="dlg-btn dlg-btn-cancel" @tap="onTapAdjCancel">
+						<text class="dlg-btn-text dlg-btn-cancel-text">取消</text>
+					</view>
+					<view class="dlg-btn dlg-btn-ok" @tap="onTapAdjConfirm">
+						<text class="dlg-btn-text dlg-btn-ok-text">确认{{ adj.direction == 'gift' ? '赠送' : '扣减' }}</text>
+					</view>
 				</view>
-				<view class="dlg-btn dlg-btn-ok" @tap="onTapAdjConfirm">
-					<text class="dlg-btn-text dlg-btn-ok-text">确认{{ adj.direction == 'gift' ? '赠送' : '扣减' }}</text>
+			</view>
+
+			<!-- 门店选择弹层（自定义，带关键词搜索） -->
+			<view v-if="storeSel.visible" class="dlg-overlay dlg-overlay-top" @tap="onCloseStoreSelect">
+				<view class="dlg-card store-sel-card" @tap.stop="">
+					<view class="dlg-head">
+						<text class="dlg-title">选择门店</text>
+						<text class="dlg-sub">支持门店名称关键词搜索</text>
+					</view>
+
+					<view class="store-sel-search">
+						<text class="store-sel-search-ico">🔍</text>
+						<input
+							class="store-sel-search-input"
+							type="text"
+							:value="storeSel.keyword"
+							placeholder="搜索门店名称"
+							placeholder-class="field-ph"
+							confirm-type="search"
+							@input="onStoreSearchInput"
+						/>
+					</view>
+
+					<scroll-view class="store-sel-list" scroll-y>
+						<view v-if="storeSel.searching" class="store-sel-state">
+							<text class="store-sel-state-text">搜索中…</text>
+						</view>
+						<view v-else-if="storeSel.list.length == 0" class="store-sel-state">
+							<text class="store-sel-state-text">未找到相关门店</text>
+						</view>
+						<template v-else>
+							<view
+								v-for="(s, i) in storeSel.list"
+								:key="s.id"
+								class="store-sel-row"
+								:class="{ 'store-sel-row-on': adjStore != null && adjStore.id == s.id }"
+								@tap="onPickStore(i)"
+							>
+								<view class="store-sel-main">
+									<text class="store-sel-name">{{ s.name }}</text>
+									<text class="store-sel-addr" v-if="s.address.length > 0">{{ s.address }}</text>
+								</view>
+								<text class="store-sel-check" v-if="adjStore != null && adjStore.id == s.id">✓</text>
+							</view>
+						</template>
+					</scroll-view>
 				</view>
 			</view>
 		</view>
-	</view>
-
-	<!-- ============ 荣誉弹层 ============ -->
-	<view v-if="honor.visible" class="dlg-overlay" @tap="onTapHonorMask">
-		<view class="dlg-card dlg-card-tall" @tap.stop="">
-			<view class="dlg-head">
-				<text class="dlg-title">荣誉 · {{ honor.target?.name ?? '' }}</text>
-				<text class="dlg-sub">共 {{ honorList.length }} 项 · 含日期与级别</text>
-			</view>
-
-			<scroll-view class="honor-scroll" direction="vertical" :show-scrollbar="false">
-				<view
-					v-for="h in honorList"
-					:key="h.id"
-					class="honor-row"
-				>
-					<view class="honor-medal" :class="'medal-' + h.level">
-						<text class="honor-medal-text">{{ medalText(h.level) }}</text>
-					</view>
-					<view class="honor-main">
-						<text class="honor-title">{{ h.title }}</text>
-						<text class="honor-sub">{{ h.subtitle }}</text>
-					</view>
-					<text class="honor-date">{{ h.date }}</text>
-				</view>
-				<view v-if="honorList.length == 0" class="honor-empty">
-					<text class="honor-empty-text">暂无荣誉记录</text>
-				</view>
-			</scroll-view>
-
-			<view class="dlg-btns">
-				<view class="dlg-btn dlg-btn-ok dlg-btn-full" @tap="onTapHonorClose">
-					<text class="dlg-btn-text dlg-btn-ok-text">关闭</text>
-				</view>
-			</view>
-		</view>
-	</view>
-
-	<!-- ============ 账单弹层 ============ -->
-	<view v-if="bill.visible" class="dlg-overlay" @tap="onTapBillMask">
-		<view class="dlg-card dlg-card-tall" @tap.stop="">
-			<view class="dlg-head">
-				<text class="dlg-title">账单 · {{ bill.target?.name ?? '' }}</text>
-				<text class="dlg-sub">近 {{ billListAll.length }} 条记录 · 含赠送/扣减/购入/兑换/退回/签到</text>
-			</view>
-
-			<scroll-view class="bill-filter" direction="horizontal" :show-scrollbar="false">
-				<view
-					v-for="t in BILL_FILTER_TABS"
-					:key="t.key"
-					class="filter-chip"
-					:class="{ 'filter-on': bill.filter === t.key }"
-					@tap="onTapBillFilter(t.key)"
-				>
-					<text class="filter-chip-text" :class="{ 'filter-chip-text-on': bill.filter === t.key }">{{ t.label }}</text>
-				</view>
-			</scroll-view>
-
-			<scroll-view class="bill-scroll" direction="vertical" :show-scrollbar="false">
-				<view
-					v-for="b in billList"
-					:key="b.id"
-					class="bill-row"
-				>
-					<view class="bill-type" :style="'background-color:' + b.assetColor + '22;border-color:' + b.assetColor + ';'">
-						<text class="bill-type-text" :style="'color:' + b.assetColor + ';'">{{ BILL_TYPE_LABEL[b.type] }}</text>
-					</view>
-					<view class="bill-main">
-						<text class="bill-asset">{{ b.asset }} · {{ b.operator }}</text>
-						<text class="bill-reason">{{ b.reason }}</text>
-					</view>
-					<view class="bill-right">
-						<text class="bill-delta" :class="b.delta > 0 ? 'bill-delta-up' : 'bill-delta-down'">
-							{{ b.delta > 0 ? '+' : '' }}{{ b.delta }}
-						</text>
-						<text class="bill-date">{{ b.date }}</text>
-					</view>
-				</view>
-				<view v-if="billList.length == 0" class="bill-empty">
-					<text class="bill-empty-text">该类型暂无记录</text>
-				</view>
-			</scroll-view>
-
-			<view class="dlg-btns">
-				<view class="dlg-btn dlg-btn-ok dlg-btn-full" @tap="onTapBillClose">
-					<text class="dlg-btn-text dlg-btn-ok-text">关闭</text>
-				</view>
-			</view>
-		</view>
-	</view>
 
 	<!-- ============ 改手机号弹层 ============ -->
 	<view v-if="phone.visible" class="dlg-overlay" @tap="onTapPhoneMask">
 		<view class="dlg-card" @tap.stop="">
 			<view class="dlg-head">
-				<text class="dlg-title">改手机号 · {{ phone.target?.name ?? '' }}</text>
+				<text class="dlg-title">改手机号 · {{ phone.target?.username ?? '' }}</text>
 				<text class="dlg-sub">修改后立即生效，记录在账单中</text>
 			</view>
 
@@ -379,18 +316,6 @@
 				/>
 			</view>
 
-			<view class="field">
-				<text class="field-label">备注</text>
-				<input
-					class="field-input"
-					type="text"
-					:value="phone.reason"
-					placeholder="可选，如：用户申诉 / 实名补录"
-					placeholder-class="field-ph"
-					@input="onPhoneReasonInput"
-				/>
-			</view>
-
 			<text v-if="phone.error.length > 0" class="dlg-error">{{ phone.error }}</text>
 
 			<view class="dlg-btns">
@@ -407,72 +332,44 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ADMIN_USERS_DETAIL, ASSET_META, BILL_TYPE_LABEL, TIER_META, getUserBills, getUserHonors, maskPhone, metaOf, tierRoman } from '@/common/admin-user-data'
-import type { AdminUserRow, AssetKey, UserBillItem, UserHonorItem } from '@/common/admin-user-data'
+import { fetchAdminUserList, updateBalance, bindPhone } from '@/common/user-api'
+import type { CustomerVO, UserBalanceVO, BalanceUpdateParams } from '@/common/user-api'
+import { fetchSimpleStores } from '@/common/store-api'
+import type { SimpleStoreVO } from '@/common/store-api'
 
-/* ============== 数据层（模拟接口） ============== */
-// 模拟后端的用户列表接口：返回 Promise，关键词为空时返回全量
-// 真实接入时只需把这个函数换成 uni.request 即可，调用方无需改动
-type SearchResult = {
-	list : AdminUserRow[]
-	total : number          // 服务端总命中数（包含未加载的）
-	usedFallback : boolean  // 标记是否走了"未找到"兜底
-}
-const API_DELAY_MS : number = 380          // 模拟网络延迟
-const fetchUsers = (kw : string) : Promise<SearchResult> => {
-	return new Promise((resolve : (r : SearchResult) => void) : void => {
-		setTimeout((): void => {
-			const key : string = kw.trim().toLowerCase()
-			const all : AdminUserRow[] = ADMIN_USERS_DETAIL
-			const out : AdminUserRow[] = []
-			const len : number = all.length
-			if (key.length == 0) {
-				resolve({ list: all.slice(), total: len, usedFallback: false })
-				return
-			}
-			for (let i : number = 0; i < len; i++) {
-				const u = all[i]
-				if (u.name.toLowerCase().indexOf(key) >= 0
-					|| u.id.toLowerCase().indexOf(key) >= 0
-					|| u.phone.indexOf(key) >= 0) {
-					out.push(u)
-				}
-			}
-			resolve({ list: out, total: out.length, usedFallback: false })
-		}, API_DELAY_MS)
+/* ============== 数据层（真实接口） ============== */
+// GET /user/list?keyword=&page=&limit=，返回 CustomerVO；资产在 balanceList 里按门店拆分
+const fetchUsers = (kw : string, page : number, limit : number) : Promise<{ list : CustomerVO[], total : number }> => {
+	return fetchAdminUserList(kw, page, limit).then((r : { list : CustomerVO[], total : number }) : { list : CustomerVO[], total : number } => {
+		return { list: r.list, total: r.total }
 	})
 }
 
 /* ============== 状态 ============== */
-// 内存中的"服务端返回"全集；visible 是当前渲染的前缀；filtered 是上次搜索结果
-const users = ref<AdminUserRow[]>([])
-const visible = ref<AdminUserRow[]>([])
+// visible 是已加载并渲染的行（服务端分页逐页追加）；total 是服务端命中总数
+const visible = ref<CustomerVO[]>([])
 const keyword = ref<string>('')
 const searching = ref(false)               // 搜索 loading
 const loading = ref(false)                 // 分页 loading
 const noMore = ref(true)
-const PAGE_SIZE : number = 6
-// 上一次搜索命中数（无关键词时 = 全量）
-const stats = ref<{ searchHits : number }>({ searchHits: 0 })
-
-/* ============== 初始化：onLoad → 调一次接口拉全量 ============== */
-let reqSeq : number = 0                     // 请求序号，过期回调直接丢弃（避免回填覆盖）
+const PAGE_SIZE : number = 20
+const total = ref<number>(0)               // 命中总数（无关键词时 = 全量用户数）
+const pageNo = ref<number>(0)              // 已加载到的页码
+/* ============== 初始化：onLoad → 调一次接口拉第一页 ============== */
 const doFetch = (kw : string, resetPage : boolean) : void => {
-	const seq : number = ++reqSeq
 	if (kw.trim().length > 0) { searching.value = true }
-	fetchUsers(kw).then((res : SearchResult) : void => {
+	const page : number = resetPage ? 1 : pageNo.value + 1
+	fetchUsers(kw, page, PAGE_SIZE).then((res : { list : CustomerVO[], total : number }) : void => {
 		// 过期请求：忽略结果
-		if (seq !== reqSeq) { return }
-		users.value = res.list
-		stats.value.searchHits = res.total
-		if (resetPage) {
-			visible.value = users.value.slice(0, PAGE_SIZE)
-		}
-		noMore.value = visible.value.length >= users.value.length
+		visible.value = resetPage ? res.list : visible.value.concat(res.list)
+		pageNo.value = page
+		total.value = res.total
+		noMore.value = res.list.length < PAGE_SIZE
 		searching.value = false
+		loading.value = false
 	}).catch((): void => {
-		if (seq !== reqSeq) { return }
 		searching.value = false
+		loading.value = false
 		uni.showToast({ title: '搜索失败', icon: 'none' })
 	})
 }
@@ -521,41 +418,57 @@ const onTapClear = () : void => {
 	doFetch('', true)
 }
 
-/* ============== 分页：触底加载更多 ============== */
+/* ============== 分页：触底加载下一页（服务端翻页） ============== */
 const loadMore = () : void => {
 	if (loading.value || noMore.value || searching.value) { return }
 	loading.value = true
-	setTimeout((): void => {
-		const start : number = visible.value.length
-		const cur : AdminUserRow[] = users.value
-		const chunk : AdminUserRow[] = cur.slice(start, start + PAGE_SIZE)
-		const next : AdminUserRow[] = visible.value.slice()
-		for (let i : number = 0; i < chunk.length; i++) { next.push(chunk[i]) }
-		visible.value = next
-		if (visible.value.length >= cur.length) { noMore.value = true }
-		loading.value = false
-	}, 220)
+	doFetch(keyword.value, false)
 }
-onReachBottom((): void => { loadMore() })
 
-/* ============== 头像 / 段位 工具 ============== */
-const avatarOf = (u : AdminUserRow) : string => u.name.length == 0 ? '?' : u.name.substring(0, 1)
-const tierColorOf = (u : AdminUserRow) : string => TIER_META[u.tier].color
-const tierSuitOf = (u : AdminUserRow) : string => TIER_META[u.tier].suit
-const tierLabelOf = (u : AdminUserRow) : string => TIER_META[u.tier].suit + ' ' + TIER_META[u.tier].name + ' ' + tierRoman(u.tierLevel)
-
-/* ============== 数字格式化 ============== */
+/* ============== 展示工具 ============== */
+const avatarText = (u : CustomerVO) : string => (u.username || '').length > 0 ? u.username.substring(0, 1) : '?'
 const fmtNum = (n : number) : string => {
-	if (Number.isInteger(n)) { return n.toString() }
-	return n.toFixed(2)
+	const v : number = Number(n)
+	if (!Number.isFinite(v)) { return '0' }
+	if (Number.isInteger(v)) { return v.toString() }
+	return v.toFixed(2)
 }
 
 /* ============== 调账弹层 ============== */
 type AdjDirection = 'gift' | 'deduct'
+// 可调资产：storeType 为 '' 的挂在用户 CustomerVO 上（不需要选门店），
+// 其余挂在门店钱包 UserBalanceVO 上，按门店类型（silent / jiude）过滤
+type BalKey = 'balance' | 'ticket' | 'points' | 'amount' | 'totalAmount' | 'comboA' | 'comboB' | 'comboC' | 'monthTicket' | 'inviteCard'
+type BalMeta = { key : BalKey, label : string, color : string, unit : string, intOnly : boolean }
+let BAL_META : BalMeta[] = []
+const SILENT_BAL_META : BalMeta[] = [
+	// silent 门店：余额 / 门票
+	{ key: 'balance',     label: '余额',     color: '#E8C275', unit: '元', intOnly: false },
+	{ key: 'ticket',      label: '门票',     color: '#7AB6F2', unit: '张', intOnly: true },
+	// 用户级：月票 / 直通函，不需要选择门店
+	{ key: 'monthTicket', label: '月票',     color: '#2AA97A', unit: '张', intOnly: true },
+	{ key: 'inviteCard',  label: '直通函',   color: '#2AA97A', unit: '张', intOnly: true }
+]
+const JIUDE_BAL_META : BalMeta[] = [
+	// jiude 门店：积分 / 酒德余额 / 成长值 / 套餐券A B C
+	{ key: 'amount',      label: '酒德余额', color: '#57C79A', unit: '元', intOnly: true },
+	{ key: 'totalAmount', label: '成长值',   color: '#7AB6F2', unit: '点', intOnly: true },		
+	{ key: 'comboA',      label: '套餐券A',  color: '#2AA97A', unit: '张', intOnly: true },
+	{ key: 'comboB',      label: '套餐券B',  color: '#E8C275', unit: '张', intOnly: true },
+	{ key: 'comboC',      label: '套餐券C',  color: '#B07AE8', unit: '张', intOnly: true }
+]
+
+const balMetaOf = (k : BalKey) : BalMeta => {
+	const list : BalMeta[] = BAL_META
+	for (let i : number = 0; i < list.length; i++) { if (list[i].key == k) { return list[i] } }
+	return list[0]
+}
+
 type AdjState = {
 	visible : boolean
-	target : AdminUserRow | null
-	assetKey : AssetKey
+	target : CustomerVO | null
+	storeType : string
+	assetKey : BalKey
 	direction : AdjDirection
 	amount : string
 	reason : string
@@ -564,25 +477,97 @@ type AdjState = {
 const adj = ref<AdjState>({
 	visible: false,
 	target: null,
-	assetKey: 'balance',
+	storeType: 'silent',
+	assetKey: 'balance',   // 默认调用户级资产（余额），不依赖门店
 	direction: 'gift',
 	amount: '',
 	reason: '',
 	error: ''
 })
-const adjMeta = computed(() => metaOf(adj.value.assetKey))
-const adjCurrentVal = computed((): string => {
-	const u = adj.value.target
-	if (u == null) { return '0' }
-	return fmtNum(u[adj.value.assetKey])
+const adjMeta = computed<BalMeta>(() => balMetaOf(adj.value.assetKey))
+
+/* 门店选择：GET /store/simple-list?keyword=&limit=10，自定义弹层 + 关键词搜索 */
+const adjStore = ref<SimpleStoreVO | null>(null)
+type StoreSelState = {
+	visible : boolean
+	keyword : string
+	searching : boolean
+	list : SimpleStoreVO[]
+}
+const storeSel = ref<StoreSelState>({ visible: false, keyword: '', searching: false, list: [] })
+let storeSeq : number = 0                     // 搜索序号，过期回调丢弃
+let storeSearchTimer : any = null             // 输入防抖
+const loadStoreOptions = (kw : string, storeType : string) : void => {
+	const seq : number = ++storeSeq
+	if (kw.trim().length > 0) { storeSel.value.searching = true }
+	fetchSimpleStores(kw, storeType, 10).then((list : SimpleStoreVO[]) : void => {
+		if (seq !== storeSeq) { return }
+		storeSel.value.list = list
+		storeSel.value.searching = false
+	}).catch((): void => {
+		if (seq !== storeSeq) { return }
+		storeSel.value.searching = false
+		uni.showToast({ title: '门店查询失败', icon: 'none' })
+	})
+}
+const onOpenStoreSelect = () : void => {
+	if (storeSearchTimer != null) { clearTimeout(storeSearchTimer); storeSearchTimer = null }
+	storeSel.value = { visible: true, keyword: '', searching: false, list: [] }
+	loadStoreOptions('', adj.value.storeType)
+}
+const onStoreSearchInput = (e : any) : void => {
+	storeSel.value.keyword = (e.detail.value || '').toString()
+	if (storeSearchTimer != null) { clearTimeout(storeSearchTimer) }
+	storeSearchTimer = setTimeout((): void => {
+		loadStoreOptions(storeSel.value.keyword, adj.value.storeType)
+	}, 300)
+}
+const onPickStore = (i : number) : void => {
+	const s : SimpleStoreVO | undefined = storeSel.value.list[i]
+	if (s == null) { return }
+	adjStore.value = s
+	storeSel.value.visible = false
+	adj.value.error = ''
+}
+const onCloseStoreSelect = () : void => { storeSel.value.visible = false }
+// 选中门店在该用户名下的钱包；门店尚未开户时为 null
+const adjWallet = computed<UserBalanceVO | null>(() => {
+	const t = adj.value.target
+	const s = adjStore.value
+	if (t == null || s == null || !t.balanceList) { return null }
+	for (let i : number = 0; i < t.balanceList.length; i++) {
+		if (t.balanceList[i].storeId == s.id) { return t.balanceList[i] }
+	}
+	return null
 })
-const onTapAdjust = (u : AdminUserRow) : void => {
+// 用户级资产（月票/直通函）读写
+const userAssetVal = (u : CustomerVO, k : BalKey) : number => {
+	if (k == 'monthTicket') { return Number(u.monthTicket ?? 0) }
+	if (k == 'inviteCard') { return Number(u.inviteCard ?? 0) }
+	return 0
+}
+// 当前资产值：月票/直通函挂用户身上，其余读所选门店钱包（未选门店显示 0）
+const adjCurrentVal = computed((): string => {
+	const k : BalKey = adj.value.assetKey
+	if (k == 'monthTicket' || k == 'inviteCard') {
+		const u = adj.value.target
+		if (u == null) { return '0' }
+		return fmtNum(userAssetVal(u, k))
+	}
+	const w = adjWallet.value
+	if (w == null) { return '0' }
+	return fmtNum(w[k])
+})
+const onTapAdjust = (u : CustomerVO, storeType : string) : void => {
+	BAL_META = storeType == 'silent' ? SILENT_BAL_META : JIUDE_BAL_META
 	adj.value = {
-		visible: true, target: u, assetKey: 'balance',
+		visible: true, target: u, storeType: storeType,
+		assetKey: BAL_META.length > 0 ? BAL_META[0].key : 'balance',   // 默认选该类型第一项
 		direction: 'gift', amount: '', reason: '', error: ''
 	}
+	adjStore.value = null
 }
-const onTapAsset = (k : AssetKey) : void => {
+const onTapAsset = (k : BalKey) : void => {
 	adj.value.assetKey = k
 	adj.value.error = ''
 }
@@ -594,97 +579,62 @@ const onAdjAmountInput = (e : any) : void => {
 	adj.value.amount = (e.detail.value || '').toString()
 	adj.value.error = ''
 }
-const onAdjReasonInput = (e : any) : void => {
-	adj.value.reason = (e.detail.value || '').toString()
-	adj.value.error = ''
-}
 const onTapAdjCancel = () : void => { adj.value.visible = false }
 const onTapAdjMask = () : void => { adj.value.visible = false }
 const onTapAdjConfirm = () : void => {
 	const u = adj.value.target
 	if (u == null) { adj.value.visible = false; return }
+	const a : BalMeta = adjMeta.value
 	const raw : string = adj.value.amount.trim()
 	if (raw.length == 0) { adj.value.error = '请输入数量'; return }
 	const num : number = Number(raw)
-	if (!Number.isFinite(num) || num <= 0) { adj.value.error = '数量需大于 0'; return }
-	if (adjMeta.value.intOnly && !Number.isInteger(num)) { adj.value.error = '该资产必须为整数'; return }
-	if (adj.value.reason.trim().length == 0) { adj.value.error = '请填写备注'; return }
+	// 后端 BalanceUpdateRequest.amount 为 Integer，统一要求正整数
+	if (!Number.isInteger(num) || num <= 0) { adj.value.error = '数量需为正整数'; return }
 
-	// 调账接口（演示用本地直接改，真实接入时这里走 uni.request + 成功后才关闭弹层）
-	const key : AssetKey = adj.value.assetKey
-	const before : number = u[key]
-	if (adj.value.direction == 'deduct' && before < num) {
-		adj.value.error = '扣减失败：' + adjMeta.value.label + '当前仅 ' + fmtNum(before) + ' ' + adjMeta.value.unit
-		return
+	if(adj.value.assetKey !== 'monthTicket' && adj.value.assetKey !== 'inviteCard') {
+		if(adjStore.value == null) { adj.value.error = '请选择门店'; return }
 	}
-	const after : number = adj.value.direction == 'gift' ? before + num : before - num
-	const finalVal : number = adjMeta.value.intOnly ? Math.round(after) : Math.round(after * 100) / 100
-	u[key] = finalVal
-	uni.showToast({ title: (adj.value.direction == 'gift' ? '已赠送' : '已扣减') + ' ' + num + ' ' + adjMeta.value.unit, icon: 'none' })
-	adj.value.visible = false
+	// POST /balance/update
+	const params : BalanceUpdateParams = {
+		storeId: adjStore.value != null ? Number(adjStore.value.id) : 0,   // 月票/直通函等用户级资产传 0
+		userId: Number(u.id),
+		amount: num,
+		balanceType: adj.value.assetKey,
+		balanceAction: adj.value.direction
+	}
+	uni.showLoading({ title: '提交中' })
+	updateBalance(params).then(() : void => {
+		uni.hideLoading()
+		uni.showToast({ title: (adj.value.direction == 'gift' ? '已赠送 ' : '已扣减 ') + num + ' ' + a.unit, icon: 'none' })
+		adj.value.visible = false
+		// 重新拉取列表，以服务端数据为准
+		doFetch(keyword.value, true)
+	}).catch((e : any) : void => {
+		uni.hideLoading()
+		adj.value.error = (e && e.message) ? e.message : '调账失败，请重试'
+	})
 }
 
-/* ============== 荣誉弹层 ============== */
-type HonorState = { visible : boolean, target : AdminUserRow | null }
-const honor = ref<HonorState>({ visible: false, target: null })
-const honorList = computed<UserHonorItem[]>((): UserHonorItem[] => {
-	if (honor.value.target == null) { return [] }
-	return getUserHonors(honor.value.target.id)
-})
-const medalText = (lvl : UserHonorItem['level']) : string => {
-	if (lvl == 'gold') { return '金' }
-	if (lvl == 'silver') { return '银' }
-	return '铜'
+const onTapHonor = (u : CustomerVO) : void => {
+	uni.navigateTo({ url: '/pages/settings/honor-cards?userId=' + u.id })
 }
-const onTapHonor = (u : AdminUserRow) : void => { honor.value = { visible: true, target: u } }
-const onTapHonorMask = () : void => { honor.value.visible = false }
-const onTapHonorClose = () : void => { honor.value.visible = false }
 
-/* ============== 账单弹层 ============== */
-type BillFilter = 'all' | 'gift' | 'deduct' | 'buy' | 'redeem' | 'refund' | 'sign'
-const BILL_FILTER_TABS : { key : BillFilter, label : string }[] = [
-	{ key: 'all',    label: '全部' },
-	{ key: 'gift',   label: '赠送' },
-	{ key: 'deduct', label: '扣减' },
-	{ key: 'buy',    label: '购入' },
-	{ key: 'redeem', label: '兑换' },
-	{ key: 'refund', label: '退回' },
-	{ key: 'sign',   label: '签到' }
-]
-type BillState = { visible : boolean, target : AdminUserRow | null, filter : BillFilter }
-const bill = ref<BillState>({ visible: false, target: null, filter: 'all' })
-const billListAll = computed<UserBillItem[]>((): UserBillItem[] => {
-	if (bill.value.target == null) { return [] }
-	return getUserBills(bill.value.target.id)
-})
-const billList = computed<UserBillItem[]>((): UserBillItem[] => {
-	const f = bill.value.filter
-	const all = billListAll.value
-	if (f == 'all') { return all }
-	const out : UserBillItem[] = []
-	const len : number = all.length
-	for (let i : number = 0; i < len; i++) {
-		if (all[i].type == f) { out.push(all[i]) }
-	}
-	return out
-})
-const onTapBill = (u : AdminUserRow) : void => { bill.value = { visible: true, target: u, filter: 'all' } }
-const onTapBillMask = () : void => { bill.value.visible = false }
-const onTapBillClose = () : void => { bill.value.visible = false }
-const onTapBillFilter = (k : BillFilter) : void => { bill.value.filter = k }
+const onTapBill = (u : CustomerVO) : void => {
+	uni.navigateTo({ url: '/pages/settings/consume-records?userId=' + u.id })
+}
+
+const onTapJiudeBill = (u : CustomerVO) : void => {
+	uni.navigateTo({ url: '/pages/jiude-billing/jiude-billing?userId=' + u.id })
+}
 
 /* ============== 改手机号弹层 ============== */
-type PhoneState = { visible : boolean, target : AdminUserRow | null, next : string, reason : string, error : string }
-const phone = ref<PhoneState>({ visible: false, target: null, next: '', reason: '', error: '' })
-const onTapPhone = (u : AdminUserRow) : void => {
-	phone.value = { visible: true, target: u, next: '', reason: '', error: '' }
+type PhoneState = { visible : boolean, target : CustomerVO | null, next : string, error : string }
+const phone = ref<PhoneState>({ visible: false, target: null, next: '', error: '' })
+const onTapPhone = (u : CustomerVO) : void => {
+	phone.value = { visible: true, target: u, next: '', error: '' }
 }
 const onPhoneInput = (e : any) : void => {
 	phone.value.next = (e.detail.value || '').toString()
-	phone.value.error = ''
-}
-const onPhoneReasonInput = (e : any) : void => {
-	phone.value.reason = (e.detail.value || '').toString()
 	phone.value.error = ''
 }
 const onTapPhoneCancel = () : void => { phone.value.visible = false }
@@ -696,10 +646,18 @@ const onTapPhoneConfirm = () : void => {
 	if (next.length != 11) { phone.value.error = '手机号需 11 位'; return }
 	if (!/^1[3-9]\d{9}$/.test(next)) { phone.value.error = '手机号格式不正确'; return }
 	if (next == u.phone) { phone.value.error = '新手机号与当前一致'; return }
-	// 真实接入：走修改手机号接口 → 成功才更新本地
-	u.phone = next
-	uni.showToast({ title: '已修改手机号', icon: 'none' })
-	phone.value.visible = false
+	// POST /user/bind-phone
+	uni.showLoading({ title: '提交中' })
+	bindPhone({ userId: Number(u.id), phone: next }).then(() : void => {
+		uni.hideLoading()
+		uni.showToast({ title: '已修改手机号', icon: 'none' })
+		phone.value.visible = false
+		// 重新拉取列表，以服务端数据为准
+		doFetch(keyword.value, true)
+	}).catch((e : any) : void => {
+		uni.hideLoading()
+		phone.value.error = (e && e.message) ? e.message : '修改失败，请重试'
+	})
 }
 </script>
 
@@ -787,49 +745,6 @@ const onTapPhoneConfirm = () : void => {
 	40% { transform: scale(1); opacity: 1; }
 }
 
-/* ============ 统计条 ============ */
-.summary {
-	flex-direction: row;
-	align-items: center;
-	background-color: #131615;
-	border: 1rpx solid #242827;
-	border-radius: 16rpx;
-	padding: 18rpx 22rpx;
-	margin-bottom: 18rpx;
-}
-.summary-stat {
-	flex-direction: row;
-	align-items: baseline;
-}
-.summary-num {
-	font-size: 30rpx;
-	color: #7AB6F2;
-	font-weight: 700;
-	margin-right: 8rpx;
-}
-.summary-num-total {
-	color: #EDEFEE;
-}
-.summary-key {
-	font-size: 21rpx;
-	color: #8F9492;
-}
-.summary-divider {
-	width: 1rpx;
-	height: 28rpx;
-	background-color: #242827;
-	margin: 0 22rpx;
-}
-.summary-state {
-	flex: 1;
-	align-items: flex-end;
-}
-.summary-state-text {
-	font-size: 20rpx;
-	color: #6E7573;
-	max-width: 360rpx;
-}
-
 /* ============ 用户卡片（重设计） ============ */
 .ucard {
 	flex-direction: column;
@@ -842,7 +757,7 @@ const onTapPhoneConfirm = () : void => {
 	box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.35);
 }
 
-/* 顶部：头像 + 名称 + tier pill + phone */
+/* 顶部：头像 + 昵称 + 编号/手机号 */
 .ucard-top {
 	flex-direction: row;
 	align-items: center;
@@ -857,29 +772,18 @@ const onTapPhoneConfirm = () : void => {
 	align-items: center;
 	justify-content: center;
 	margin-right: 18rpx;
-	border: 2rpx solid;
+	border: 2rpx solid #2A2F2D;
 	position: relative;
+}
+.avatar-img {
+	width: 100%;
+	height: 100%;
+	border-radius: 40rpx;
 }
 .avatar-text {
 	font-size: 34rpx;
 	color: #EDEFEE;
 	font-weight: 700;
-}
-.avatar-tier {
-	position: absolute;
-	right: -4rpx;
-	bottom: -4rpx;
-	width: 30rpx;
-	height: 30rpx;
-	border-radius: 15rpx;
-	align-items: center;
-	justify-content: center;
-	border: 2rpx solid #171A19;
-}
-.avatar-tier-text {
-	font-size: 17rpx;
-	color: #0B0D0C;
-	font-weight: 800;
 }
 .head {
 	flex: 1;
@@ -895,23 +799,15 @@ const onTapPhoneConfirm = () : void => {
 	font-weight: 700;
 	margin-right: 12rpx;
 }
-.tier-pill {
-	padding: 4rpx 12rpx;
-	border-radius: 999rpx;
-	border: 1rpx solid;
-}
-.tier-pill-text {
-	font-size: 19rpx;
-	font-weight: 600;
+.u-meta-row {
+	flex-direction: row;
+	align-items: center;
+	margin-top: 6rpx;
 }
 .u-id {
 	font-size: 21rpx;
 	color: #8F9492;
-	margin-top: 6rpx;
-}
-.head-phone {
-	flex-direction: row;
-	margin-top: 8rpx;
+	margin-right: 12rpx;
 }
 .phone-pill {
 	padding: 4rpx 14rpx;
@@ -959,47 +855,67 @@ const onTapPhoneConfirm = () : void => {
 	margin-left: 4rpx;
 }
 
-/* 资产 chip 行 */
-.asset-row {
-	flex-direction: row;
+/* ============ 门店资产块 ============ */
+.store-block {
 	margin-top: 14rpx;
-	flex-wrap: wrap;
-	justify-content: space-between;
-}
-.asset-chip {
-	width: 18.4%;
-	min-width: 110rpx;
-	flex-direction: column;
-	align-items: center;
-	padding: 12rpx 4rpx;
 	background-color: #0F1211;
 	border: 1rpx solid #242827;
-	border-radius: 12rpx;
-	margin-bottom: 8rpx;
+	border-radius: 14rpx;
+	padding: 16rpx 18rpx;
 }
-.asset-key {
-	font-size: 19rpx;
-	color: #8F9492;
+.store-head {
+	flex-direction: row;
+	align-items: center;
+	margin-bottom: 12rpx;
 }
-.asset-val {
+.store-name {
 	font-size: 23rpx;
+	color: #C7CDCB;
+	font-weight: 600;
+}
+.store-grid {
+	flex-direction: row;
+}
+.store-cell {
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+}
+.store-label {
+	font-size: 19rpx;
+	color: #6E7573;
+}
+.store-val {
+	font-size: 24rpx;
 	color: #EDEFEE;
 	font-weight: 700;
 	margin-top: 4rpx;
 }
-.asset-chip-money .asset-val {
+.store-val-money {
 	color: #E8C275;
 }
-.asset-chip-jd .asset-val {
+.store-val-jd {
 	color: #57C79A;
 }
-
-/* 套餐券 + 大师分 */
-.voucher-row {
+.store-combos {
 	flex-direction: row;
 	align-items: center;
-	margin-top: 10rpx;
+	margin-top: 12rpx;
 }
+.store-empty {
+	margin-top: 14rpx;
+	padding: 18rpx 0;
+	align-items: center;
+	background-color: #0F1211;
+	border: 1rpx solid #242827;
+	border-radius: 14rpx;
+}
+.store-empty-text {
+	font-size: 21rpx;
+	color: #6E7573;
+}
+
+/* 套餐券 chip（门店资产卡内复用） */
 .v-chip {
 	flex-direction: row;
 	align-items: center;
@@ -1031,25 +947,6 @@ const onTapPhoneConfirm = () : void => {
 .v-chip-c .v-val { color: #B07AE8; }
 .v-val {
 	font-size: 20rpx;
-	font-weight: 700;
-}
-.master-chip {
-	margin-left: auto;
-	flex-direction: row;
-	align-items: center;
-	padding: 8rpx 14rpx;
-	border-radius: 999rpx;
-	background-color: rgba(255, 233, 184, 0.10);
-	border: 1rpx solid rgba(255, 233, 184, 0.35);
-}
-.master-key {
-	font-size: 18rpx;
-	color: #8F9492;
-	margin-right: 6rpx;
-}
-.master-val {
-	font-size: 20rpx;
-	color: #FFE9B8;
 	font-weight: 700;
 }
 
@@ -1182,6 +1079,90 @@ const onTapPhoneConfirm = () : void => {
 	font-size: 26rpx;
 	color: #EDEFEE;
 }
+/* 门店选择触发框 */
+.picker-box {
+	flex-direction: row;
+	align-items: center;
+	background-color: #0F1211;
+	border: 1rpx solid #242827;
+	border-radius: 12rpx;
+	padding: 16rpx 18rpx;
+}
+.picker-text {
+	flex: 1;
+	font-size: 26rpx;
+	color: #EDEFEE;
+}
+.picker-text-empty {
+	color: #6E7573;
+}
+.picker-arrow {
+	font-size: 22rpx;
+	color: #8F9492;
+	margin-left: 10rpx;
+}
+
+/* 门店选择弹层（自定义，带搜索） */
+.dlg-overlay-top {
+	z-index: 120;
+}
+.store-sel-card {
+	width: 620rpx;
+}
+.store-sel-search {
+	flex-direction: row;
+	align-items: center;
+	background-color: #0F1211;
+	border: 1rpx solid #242827;
+	border-radius: 12rpx;
+	padding: 14rpx 16rpx;
+	margin-bottom: 14rpx;
+}
+.store-sel-search-ico {
+	font-size: 24rpx;
+	margin-right: 10rpx;
+}
+.store-sel-search-input {
+	flex: 1;
+	font-size: 26rpx;
+	color: #EDEFEE;
+}
+.store-sel-list {
+	max-height: 480rpx;
+}
+.store-sel-state {
+	padding: 60rpx 0;
+	align-items: center;
+}
+.store-sel-state-text {
+	font-size: 22rpx;
+	color: #6E7573;
+}
+.store-sel-row {
+	flex-direction: row;
+	align-items: center;
+	padding: 20rpx 8rpx;
+	border-bottom: 1rpx solid #242827;
+}
+.store-sel-main {
+	flex: 1;
+	flex-direction: column;
+}
+.store-sel-name {
+	font-size: 26rpx;
+	color: #EDEFEE;
+	font-weight: 600;
+}
+.store-sel-addr {
+	font-size: 20rpx;
+	color: #8F9492;
+	margin-top: 4rpx;
+}
+.store-sel-check {
+	font-size: 26rpx;
+	color: #7AB6F2;
+	font-weight: 700;
+}
 .field-ph {
 	color: #4A4F4D;
 }
@@ -1290,158 +1271,5 @@ const onTapPhoneConfirm = () : void => {
 }
 .dir-text-on {
 	color: #EDEFEE;
-}
-
-/* ============ 荣誉弹层 ============ */
-.honor-scroll {
-	max-height: 60vh;
-}
-.honor-row {
-	flex-direction: row;
-	align-items: center;
-	padding: 18rpx 6rpx;
-	border-bottom: 1rpx solid #242827;
-}
-.honor-row:last-child {
-	border-bottom: 0;
-}
-.honor-medal {
-	width: 64rpx;
-	height: 64rpx;
-	border-radius: 32rpx;
-	align-items: center;
-	justify-content: center;
-	margin-right: 16rpx;
-}
-.medal-gold {
-	background-color: rgba(232, 194, 117, 0.22);
-	border: 1rpx solid rgba(232, 194, 117, 0.55);
-}
-.medal-silver {
-	background-color: rgba(199, 205, 203, 0.22);
-	border: 1rpx solid rgba(199, 205, 203, 0.55);
-}
-.medal-bronze {
-	background-color: rgba(176, 122, 91, 0.22);
-	border: 1rpx solid rgba(176, 122, 91, 0.55);
-}
-.honor-medal-text {
-	font-size: 26rpx;
-	font-weight: 700;
-	color: #EDEFEE;
-}
-.honor-main {
-	flex: 1;
-	flex-direction: column;
-}
-.honor-title {
-	font-size: 25rpx;
-	color: #EDEFEE;
-	font-weight: 600;
-}
-.honor-sub {
-	font-size: 20rpx;
-	color: #8F9492;
-	margin-top: 4rpx;
-}
-.honor-date {
-	font-size: 20rpx;
-	color: #6E7573;
-}
-.honor-empty {
-	padding: 80rpx 0;
-	align-items: center;
-}
-.honor-empty-text {
-	font-size: 22rpx;
-	color: #6E7573;
-}
-
-/* ============ 账单弹层 ============ */
-.bill-filter {
-	flex-direction: row;
-	margin-bottom: 12rpx;
-}
-.filter-chip {
-	padding: 8rpx 18rpx;
-	border-radius: 999rpx;
-	background-color: #0F1211;
-	border: 1rpx solid #2A2F2D;
-	margin-right: 10rpx;
-}
-.filter-on {
-	background-color: rgba(122, 182, 242, 0.18);
-	border-color: rgba(122, 182, 242, 0.55);
-}
-.filter-chip-text {
-	font-size: 21rpx;
-	color: #C7CDCB;
-	font-weight: 600;
-}
-.filter-chip-text-on {
-	color: #7AB6F2;
-}
-
-.bill-scroll {
-	max-height: 56vh;
-}
-.bill-row {
-	flex-direction: row;
-	align-items: center;
-	padding: 16rpx 4rpx;
-	border-bottom: 1rpx solid #242827;
-}
-.bill-row:last-child {
-	border-bottom: 0;
-}
-.bill-type {
-	padding: 6rpx 12rpx;
-	border-radius: 999rpx;
-	border-width: 1rpx;
-	margin-right: 14rpx;
-}
-.bill-type-text {
-	font-size: 19rpx;
-	font-weight: 700;
-}
-.bill-main {
-	flex: 1;
-	flex-direction: column;
-}
-.bill-asset {
-	font-size: 22rpx;
-	color: #EDEFEE;
-	font-weight: 600;
-}
-.bill-reason {
-	font-size: 19rpx;
-	color: #8F9492;
-	margin-top: 4rpx;
-}
-.bill-right {
-	align-items: flex-end;
-}
-.bill-delta {
-	font-size: 26rpx;
-	font-weight: 700;
-}
-.bill-delta-up {
-	color: #57C79A;
-}
-.bill-delta-down {
-	color: #FF6255;
-}
-.bill-date {
-	font-size: 19rpx;
-	color: #6E7573;
-	margin-top: 4rpx;
-}
-.bill-empty {
-	padding: 80rpx 0;
-	align-items: center;
-}
-.bill-empty-text {
-	font-size: 22rpx;
-	color: #6E7573;
 }
 </style>

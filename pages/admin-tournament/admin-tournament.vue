@@ -32,6 +32,7 @@
 			:key="t.id"
 			class="card"
 			:class="statusClass(t.status)"
+			@tap="onTapCard(t)"
 		>
 			<!-- 左侧状态色 accent bar -->
 			<view class="card-accent"></view>
@@ -39,7 +40,7 @@
 			<view class="card-body">
 				<!-- 头部：名称 + 状态徽标 -->
 				<view class="card-head">
-					<text class="t-name">{{ t.matchName }}</text>
+					<text class="t-name">{{ t.name }}</text>
 					<view class="status-badge" :class="statusClass(t.status)">
 						<text class="status-badge-text">{{ statusLabelOf(t.status) }}</text>
 					</view>
@@ -126,12 +127,12 @@
 					</view>
 				</view>
 
-				<!-- 操作按钮栏 -->
-				<view v-if="t.status !== 'ended'" class="actions">
-					<view class="act act-primary" @tap="onTapEdit(t)">
+				<!-- 操作按钮栏（阻止冒泡，避免触发卡片跳转详情） -->
+				<view v-if="t.status !== 'F'" class="actions" @tap.stop="">
+					<view class="act act-primary" @tap.stop="onTapEdit(t)">
 						<text class="act-primary-text">编辑比赛</text>
 					</view>
-					<view v-if="t.status == 'active'" class="act act-danger" @tap="onTapEnd(t)">
+					<view v-if="t.status == 'P'" class="act act-danger" @tap.stop="onTapEnd(t)">
 						<text class="act-danger-text">结束比赛</text>
 					</view>
 				</view>
@@ -189,7 +190,7 @@
 						<input
 							class="field-input"
 							type="text"
-							:value="dialog.form.matchName"
+							:value="dialog.form.name"
 							placeholder="如：周末深筹赛"
 							placeholder-class="field-ph"
 							@input="onNameInput"
@@ -426,7 +427,7 @@
 					v-for="s in storeSearchResults"
 					:key="s.id"
 					class="pk-row"
-					:class="{ 'pk-row-on': dialog.form.storeId === s.id }"
+					:class="{ 'pk-row-on': dialog.form.storeId == s.id }"
 					@tap="onTapStoreRow(s)"
 				>
 					<view class="pk-avatar">
@@ -436,7 +437,7 @@
 						<text class="pk-user-name">{{ s.name }}</text>
 						<text class="pk-user-id">{{ s.id }} · {{ s.address }}</text>
 					</view>
-					<view v-if="dialog.form.storeId === s.id" class="pk-check pk-check-on">
+					<view v-if="dialog.form.storeId == s.id" class="pk-check pk-check-on">
 						<text class="pk-check-text">✓</text>
 					</view>
 				</view>
@@ -456,28 +457,29 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-	TOURNAMENT_TYPES,
-	emptyTournament
+	TOURNAMENT_TYPES
 } from '@/common/admin-tournament-data'
-import type { AdminTournament, TournamentMode, TournamentStatus } from '@/common/admin-tournament-data'
+import type { TournamentMode } from '@/common/admin-tournament-data'
 import { fetchSimpleStores } from '@/common/store-api'
 import type { SimpleStoreVO } from '@/common/store-api'
-import { createMatch, endMatch, fetchMatchManageList, fetchMatchRules, fetchMatchTypes, fromMatchVO, statusLabelOf } from '@/common/match-api'
-import type { MatchSavePayload, MatchRuleVO, MatchTypeVO } from '@/common/match-api'
+import { createMatch, endMatch, emptyMatchVO, fetchMatchManageList, fetchMatchRules, fetchMatchTypes } from '@/common/match-api'
+import { statusLabelOf } from '@/common/game-detail'
+import type { MatchSavePayload, MatchRuleVO, MatchTypeVO, MatchVO } from '@/common/match-api'
 
-/* ---------------- 状态徽标样式 ---------------- */
-const statusClass = (s : TournamentStatus) : string => {
-	switch (s) {
-		case 'active':  return 'status-active'
-		case 'signup':  return 'status-signup'
-		case 'paused':  return 'status-paused'
-		case 'ended':   return 'status-ended'
+/* ---------------- 状态徽标样式（status 为后端状态码：P=进行中 C=报名中 S=暂停 F=已结束） ---------------- */
+const statusClass = (code : string) : string => {
+	switch (code) {
+		case 'P': return 'status-active'
+		case 'C': return 'status-signup'
+		case 'S': return 'status-paused'
+		case 'F': return 'status-ended'
 	}
+	return 'status-active'
 }
 
-/* ---------------- 列表 ---------------- */
+/* ---------------- 列表（直接消费 MatchVO，无中间映射） ---------------- */
 const PAGE_SIZE : number = 10
-const visible = ref<AdminTournament[]>([])
+const visible = ref<MatchVO[]>([])
 const loading = ref(false)
 const noMore = ref(false)
 const total = ref(0)
@@ -489,15 +491,12 @@ const loadMore = () : Promise<void> => {
 	loading.value = true
 	const nextPage : number = currentPage.value + 1
 	return fetchMatchManageList(nextPage, PAGE_SIZE).then((page) => {
-		const chunk : AdminTournament[] = []
-		const list = page.list || []
-		for (let i = 0; i < list.length; i++) { chunk.push(fromMatchVO(list[i])) }
-		const next = visible.value.slice()
-		for (let i = 0; i < chunk.length; i++) { next.push(chunk[i]) }
-		visible.value = next
+		const chunk : MatchVO[] = page.list || []
+		visible.value = visible.value.concat(chunk)
 		currentPage.value = nextPage
 		total.value = page.total ?? visible.value.length
-		if (chunk.length == 0 || next.length < PAGE_SIZE) { noMore.value = true }
+		// 以本页实际返回条数判断是否还有下一页
+		if (chunk.length < PAGE_SIZE) { noMore.value = true }
 	}).catch(() => {
 		console.log('loadMore failed')
 	}).finally(() => {
@@ -542,24 +541,23 @@ onMounted((): void => {
 })
 onReachBottom((): void => { loadMore() })
 
-/* 顶部「进行中」数：从 visible 计算 */
+/* 顶部「进行中」数：从 visible 计算（P=进行中） */
 const activeCount = computed<number>((): number => {
 	let n = 0
 	for (let i = 0; i < visible.value.length; i++) {
-		if (visible.value[i].status == 'active') { n++ }
+		if (visible.value[i].status == 'P') { n++ }
 	}
 	return n
 })
 
 /* ---------------- 创建 / 编辑弹层 ---------------- */
-// 深拷贝种子默认表单，避免污染；form 字段对应 AdminTournament
+// 深拷贝默认表单，避免污染；form 直接是 MatchVO 结构
 // reserveDate / reserveTime 是 picker 用的两个本地字段（uni-app x 不支持 datetime 模式），保存时合并为 form.startTime
 type DialogMode = 'create' | 'edit'
 type DialogState = {
 	visible : boolean
 	mode : DialogMode
-	tournamentId : string            // 编辑时记录 id
-	form : AdminTournament
+	form : MatchVO
 	reserveDate : string             // YYYY-MM-DD
 	reserveTime : string             // HH:mm
 	error : string
@@ -567,8 +565,7 @@ type DialogState = {
 const dialog = ref<DialogState>({
 	visible: false,
 	mode: 'create',
-	tournamentId: '',
-	form: emptyTournament(0),
+	form: emptyMatchVO(0),
 	reserveDate: '',
 	reserveTime: '',
 	error: ''
@@ -606,8 +603,7 @@ const onTapCreate = (mode : TournamentMode) : void => {
 	dialog.value = {
 		visible: true,
 		mode: 'create',
-		tournamentId: '',
-		form: emptyTournament(mode == 'reservation' ? 1 : 0),
+		form: emptyMatchVO(mode == 'reservation' ? 1 : 0),
 		// 默认预约时间为「明天 20:00」；模式切换会在 onTapSetMode 里清掉
 		reserveDate: mode == 'reservation' ? ymd(tomorrow) : '',
 		reserveTime: mode == 'reservation' ? '20:00' : '',
@@ -615,9 +611,13 @@ const onTapCreate = (mode : TournamentMode) : void => {
 	}
 }
 
-const onTapEdit = (t : AdminTournament) : void => {
+const onTapCard = (t : MatchVO) : void => {
+	uni.navigateTo({ url: '/pages/game-detail/game-detail?id=' + t.id })
+}
+
+const onTapEdit = (t : MatchVO) : void => {
 	// 已结束的比赛不可编辑（双重守卫：按钮已隐藏，这里兜底）
-	if (t.status === 'ended') {
+	if (t.status === 'F') {
 		uni.showToast({ title: '已结束的比赛不可编辑', icon: 'none' })
 		return
 	}
@@ -626,7 +626,6 @@ const onTapEdit = (t : AdminTournament) : void => {
 	dialog.value = {
 		visible: true,
 		mode: 'edit',
-		tournamentId: t.id,
 		form: { ...t },
 		reserveDate: parts[0],
 		reserveTime: parts[1],
@@ -671,7 +670,7 @@ const onTapSetType = (t : string) : void => {
 	// 从预加载数据查找匹配的类型配置
 	const matched = matchTypes.value.find((m) => m.name === t)
 	if (matched) {
-		dialog.value.form.typeId = matched.id
+		dialog.value.form.type = matched.id
 		dialog.value.form.originChips = matched.originChips
 		dialog.value.form.joinAmount = matched.joinAmount
 		dialog.value.form.joinTicket = matched.joinTicket
@@ -719,7 +718,7 @@ const prizeRows = computed<PrizeRow[]>((): PrizeRow[] => {
 })
 
 const onNameInput = (e : any) : void => {
-	dialog.value.form.matchName = (e.detail.value || '').toString()
+	dialog.value.form.name = (e.detail.value || '').toString()
 	if (dialog.value.error) { dialog.value.error = '' }
 }
 
@@ -829,12 +828,12 @@ const onTapDlgSave = () : void => {
 	const f = dialog.value.form
 
 	// ---- 校验（对齐后端 DTO 校验提示） ----
-	const name : string = f.matchName.trim()
+	const name : string = f.name.trim()
 	if (name.length == 0) { dialog.value.error = '请输入比赛名称'; return }
 	if (name.length < 3 || name.length > 20) { dialog.value.error = '名称长度在3～20个字'; return }
 	const storeIdNum : number = Number(f.storeId)
 	if (!storeIdNum || storeIdNum < 1) { dialog.value.error = '请选择店铺'; return }
-	if (f.typeId <= 0) { dialog.value.error = '请选择比赛类型'; return }
+	if (f.type <= 0) { dialog.value.error = '请选择比赛类型'; return }
 	if (f.deskCount < 1) { dialog.value.error = '最低开启一张桌'; return }
 	if (f.scheduled == 1) {
 		const combined : string = dialog.value.reserveDate + ' ' + dialog.value.reserveTime
@@ -848,7 +847,7 @@ const onTapDlgSave = () : void => {
 	const payload : MatchSavePayload = {
 		storeId: storeIdNum,
 		matchName: name,
-		typeId: f.typeId,
+		typeId: f.type,
 		scheduled: f.scheduled,
 		currentLevel: f.currentLevel,
 		firstHalfDuration: f.firstHalfDuration,
@@ -872,7 +871,7 @@ const onTapDlgSave = () : void => {
 		rankThreeTicket: f.rankThreeTicket
 	}
 	const isCreate : boolean = dialog.value.mode == 'create'
-	if (!isCreate) { payload.id = Number(dialog.value.tournamentId) }
+	if (!isCreate) { payload.id = Number(f.id) }
 
 	saving.value = true
 	createMatch(payload).then(() => {
@@ -887,10 +886,10 @@ const onTapDlgSave = () : void => {
 }
 
 /* ---------------- 结束比赛 ---------------- */
-const onTapEnd = (t : AdminTournament) : void => {
+const onTapEnd = (t : MatchVO) : void => {
 	uni.showModal({
 		title: '结束比赛',
-		content: '确定结束「' + t.matchName + '」吗？结束后将停止报名与开打',
+		content: '确定结束「' + t.name + '」吗？结束后将停止报名与开打',
 		confirmText: '结束',
 		confirmColor: '#FF6255',
 		success: (res : any) : void => {

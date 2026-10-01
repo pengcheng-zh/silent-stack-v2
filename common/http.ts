@@ -6,7 +6,8 @@
  */
 
 /** 后端服务地址：开发/生产各一套，接后端后改成真实域名 */
-export const BASE_URL : string = 'http://localhost:8080'
+export const BASE_URL : string = 'https://api.silentstack.cn'
+// export const BASE_URL : string = 'http://localhost:8088'
 
 /** 登录令牌单独存的 storage key；登录模块写、这里读 */
 const AUTH_TOKEN_KEY : string = 'auth_token'

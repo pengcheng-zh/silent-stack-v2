@@ -1,33 +1,38 @@
 <template>
 	<view class="page">
 		<scroll-view class="scroll" direction="vertical" :show-scrollbar="false">
-			<view v-if="valid" class="wrap">
+			<!-- ============ 加载中 ============ -->
+			<view v-if="loading" class="state-box">
+				<text class="state-text">加载中…</text>
+			</view>
+
+			<view v-else-if="valid" class="wrap">
 
 				<!-- ============ 赛事概览：状态 / 地点 / 名称 / 类型 ============ -->
 				<view class="hero">
 					<view class="hero-top">
 						<view class="hero-store">
 							<view class="store-dot"></view>
-							<text class="store-name">{{ info.game.storeName }}</text>
+							<text class="store-name">{{ heroStoreName }}</text>
 						</view>
 						<view class="status-badge" :style="statusBgStyle">
-							<text class="status-text" :style="statusColorStyle">{{ info.game.status }}</text>
+							<text class="status-text" :style="statusColorStyle">{{ heroStatusText }}</text>
 						</view>
 					</view>
 
-					<text class="hero-title">{{ info.game.title }}</text>
+					<text class="hero-title">{{ heroName }}</text>
 
 					<view class="hero-addr">
 						<text class="addr-label">地点</text>
-						<text class="addr-text">{{ addrText }}</text>
+						<text class="addr-text">{{ heroStoreAddr }}</text>
 					</view>
 
 					<view class="hero-tags">
 						<view class="tag">
-							<text class="tag-text">{{ info.type }}</text>
+							<text class="tag-text">{{ heroTypeName }}</text>
 						</view>
 						<view class="tag">
-							<text class="tag-text">{{ info.game.startTime }}</text>
+							<text class="tag-text">{{ heroStartTime }}</text>
 						</view>
 						<view class="tag">
 							<text class="tag-text">{{ feeText }}</text>
@@ -36,7 +41,7 @@
 				</view>
 
 				<!-- 已报名（本机走完流程后回看） -->
-				<view v-if="info.joined" class="notice">
+				<view v-if="infoJoined" class="notice">
 					<text class="notice-text">你已报名本场比赛 · {{ seatText }}</text>
 				</view>
 
@@ -57,19 +62,19 @@
 								<text class="info-card-suit">♠</text>
 								<text class="info-card-title">当前级别</text>
 							</view>
-							<text class="info-card-tag">{{ info.levelLabel }}</text>
+							<text class="info-card-tag">{{ infoLevelText }}</text>
 						</view>
 						<view class="blinds-row">
 							<view class="blind">
 								<text class="blind-label">小盲 SB</text>
-								<text class="blind-value">{{ info.smallBlind > 0 ? formatChips(info.smallBlind) : '—' }}</text>
+								<text class="blind-value">{{ infoMinChipsText }}</text>
 							</view>
 							<view class="blind-vs">
 								<text class="blind-vs-text">VS</text>
 							</view>
 							<view class="blind blind-bb">
 								<text class="blind-label">大盲 BB</text>
-								<text class="blind-value">{{ info.bigBlind > 0 ? formatChips(info.bigBlind) : '—' }}</text>
+								<text class="blind-value">{{ infoMaxChipsText }}</text>
 							</view>
 						</view>
 					</view>
@@ -88,7 +93,7 @@
 								<view class="chip chip-top"></view>
 							</view>
 							<view class="stack-text">
-								<text class="stack-num">{{ formatChips(info.game.startChips) }}</text>
+								<text class="stack-num">{{ infoOriginChipsText }}</text>
 								<text class="stack-unit">CHIPS</text>
 							</view>
 						</view>
@@ -101,12 +106,12 @@
 						</view>
 						<view class="scale-row">
 							<view class="scale-col">
-								<text class="scale-num scale-num-green">{{ info.entrants }}</text>
+								<text class="scale-num scale-num-green">{{ infoTotalCount }}</text>
 								<text class="scale-label">参赛人数</text>
 							</view>
 							<view class="scale-divider"></view>
 							<view class="scale-col">
-								<text class="scale-num scale-num-green">{{ info.alive }}</text>
+								<text class="scale-num scale-num-green">{{ infoCurrentCount }}</text>
 								<text class="scale-label">存活人数</text>
 							</view>
 						</view>
@@ -130,20 +135,9 @@
 							<text class="rule-label">个人复活</text>
 							<text class="rule-value">{{ rebuyText }}</text>
 						</view>
-					</view>
-
-					<!-- Card 5：共用蘑菇（剩余比例进度条 + 已用 / 剩余标签）-->
-					<view class="info-card">
-						<view class="info-card-head">
-							<text class="info-card-title">共用蘑菇</text>
-							<text class="info-card-sub">全桌共享 · 复活时消耗</text>
-						</view>
-						<view class="fungus-bar">
-							<view class="fungus-bar-fill" :style="fungusBarStyle"></view>
-						</view>
-						<view class="fungus-info">
-							<text class="fungus-info-left">已用 {{ fungusUsed }} / 共 {{ info.mushroomTotal }}</text>
-							<text class="fungus-info-right">剩余 {{ info.mushroomLeft }} 个</text>
+						<view class="rule-row">
+							<text class="rule-label">公用蘑菇</text>
+							<text class="rule-value">{{ infoRemainMushText }}</text>
 						</view>
 					</view>
 				</view>
@@ -159,7 +153,7 @@
 					</view>
 
 					<view class="asset-row">
-						<view v-for="a in info.assets" :key="a.key" class="asset">
+						<view v-for="a in assets" :key="a.key" class="asset">
 							<text class="asset-name">{{ a.name }}</text>
 							<view class="asset-value-wrap">
 								<text class="asset-value" :style="{ color: a.empty ? '#5A605E' : a.color }">{{ a.value }}</text>
@@ -181,9 +175,9 @@
 
 					<view class="seat-card">
 						<!-- 多桌切换：每桌 10 人 -->
-						<view v-if="info.tables.length > 1" class="table-tabs">
+						<view v-if="tables.length > 1" class="table-tabs">
 							<view
-								v-for="(t, ti) in info.tables"
+								v-for="(t, ti) in tables"
 								:key="t.no"
 								class="ttab"
 								:class="{ 'ttab-on': ti === activeTable, 'ttab-gap': ti > 0 }"
@@ -271,7 +265,7 @@
 
 					<view class="pay-list">
 						<view
-							v-for="m in info.payMethods"
+							v-for="m in payMethods"
 							:key="m.key"
 							class="pay-row"
 							:class="{ 'pay-row-off': !m.available }"
@@ -311,9 +305,13 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getGameSignup, emptyGameSignup } from '@/common/game-signup'
-import type { GameSignupInfo, SignupSeat, SignupTable, PayMethod } from '@/common/game-signup'
+import { fetchGameSignup, buildTables } from '@/common/game-signup'
+import type { SignupAsset, SignupSeat, SignupTable, PayMethod } from '@/common/game-signup'
+import { statusLabelOf, formatStart } from '@/common/game-detail'
+import { getLoginResult } from '@/common/user-api'
 import { joinedSeatOf, markJoined } from '@/common/joined-store'
+import { joinMatch } from '@/common/match-api'
+import type { MatchDetailVO } from '@/common/match-api'
 
 /* ---------------- 牌桌几何：与样式里的 .ring / .felt 尺寸一一对应 ---------------- */
 // 11 个槽位：0 号给荷官（正上方），1~10 是 10 个座位
@@ -324,50 +322,108 @@ const RING_RX : number = 285
 const RING_RY : number = 235
 const SEAT_SIZE : number = 80
 
-const signup = ref<GameSignupInfo | null>(null)
+// 当前登录用户 id：桌位里标记"我的座位"用
+const bootLogin = getLoginResult()
+const myUserId : string = bootLogin != null ? String(bootLogin.id) : ''
+
 const activeTable = ref(0)
 const pickedTable = ref(-1)                 // -1 = 还没选
 const pickedSeats = ref<number[]>([])       // 每桌各自记一个，避免切桌丢选择
 const payKey = ref('')
+const joining = ref(false)                  // 报名提交中，防连点
+const loading = ref(true)
+const info = ref<MatchDetailVO | null>(null)
 
-const info = computed<GameSignupInfo>((): GameSignupInfo => {
-	const s : GameSignupInfo | null = signup.value
-	return s == null ? emptyGameSignup() : s
-})
-
-const valid = computed<boolean>((): boolean => info.value.game.id != '')
+const valid = computed<boolean>((): boolean => info.value != null)
 
 onLoad((options : any) : void => {
 	// onLoad 实际入参就是普通 { id: string } 对象，直接键访问（与详情页同口径）
 	const raw : string | undefined = options != null ? options.id : undefined
 	const id : string = raw == null ? '' : raw
-	const data : GameSignupInfo | null = getGameSignup(id)
-	signup.value = data
-	if (data != null) { initPicks(data) }
+	// GET /match/detail-to-join/{id}：详情 + 我的资产 + 桌位占座一并返回
+	fetchGameSignup(id).then((vo : MatchDetailVO | null) : void => {
+		loading.value = false
+		if (vo == null) {
+			uni.showToast({ title: '对局不存在或已结束', icon: 'none' })
+			return
+		}
+		info.value = vo
+		initPicks()
+	}).catch((e : any) : void => {
+		loading.value = false
+		uni.showToast({ title: e && e.message ? e.message : '加载失败，请重试', icon: 'none' })
+	})
+})
+
+/* ---------------- 视图数据：直接消费 MatchDetailVO，只保留视图必需的派生 ---------------- */
+
+// 桌位：deskCount 张桌 × 10 座；deskPositionList 标出已占座位（含我自己）
+const tables = computed<SignupTable[]>((): SignupTable[] => {
+	const v : MatchDetailVO | null = info.value
+	if (v == null) { return [] }
+	return buildTables(v.deskCount, v.deskPositionList || [], myUserId)
+})
+
+// 我的资产：门票 / 月票 / 直通函 / 余额
+const assets = computed<SignupAsset[]>((): SignupAsset[] => {
+	const v : MatchDetailVO = info.value as MatchDetailVO
+	return [
+		{ key: 'ticket', name: '门票', value: String(v.userTicket), unit: '张', color: '#7AB6F2', empty: v.userTicket <= 0 },
+		{ key: 'monthly', name: '月票', value: String(v.userMonthTicket), unit: '张', color: '#2AA97A', empty: v.userMonthTicket <= 0 },
+		{ key: 'direct', name: '直通函', value: String(v.userInviteCard), unit: '张', color: '#B07AE8', empty: v.userInviteCard <= 0 },
+		{ key: 'balance', name: '余额', value: String(v.userBalance), unit: '元', color: '#E8C275', empty: v.userBalance <= 0 }
+	]
+})
+
+// 支付方式：join* > 0 表示本场支持该方式；available = 支持 且 我的资产足够
+const payMethods = computed<PayMethod[]>((): PayMethod[] => {
+	const v : MatchDetailVO = info.value as MatchDetailVO
+	const fee : number = v.joinAmount
+	return [
+		{ key: 'ticket', name: '比赛门票', desc: v.joinTicket > 0 ? ('消耗门票 ×' + v.joinTicket + '（剩 ' + v.userTicket + ' 张）') : '本场免门票', available: v.joinTicket > 0 && v.userTicket >= v.joinTicket, reason: v.joinTicket > 0 ? '门票不足，先去酒德存一张' : '本场不支持门票入场', color: '#7AB6F2' },
+		{ key: 'monthly', name: '比赛月票', desc: v.joinMonthTicket > 0 ? ('消耗月票 ×' + v.joinMonthTicket + '（剩 ' + v.userMonthTicket + ' 张）') : '本场免月票', available: v.joinMonthTicket > 0 && v.userMonthTicket >= v.joinMonthTicket, reason: v.joinMonthTicket > 0 ? '月票不足' : '本场不支持月票入场', color: '#2AA97A' },
+		{ key: 'direct', name: '比赛直通函', desc: v.joinInviteCard > 0 ? ('消耗直通函 ×' + v.joinInviteCard + '（剩 ' + v.userInviteCard + ' 张）') : '本场免直通函', available: v.joinInviteCard > 0 && v.userInviteCard >= v.joinInviteCard, reason: v.joinInviteCard > 0 ? '直通函不足' : '本场不支持直通函入场', color: '#B07AE8' },
+		{ key: 'balance', name: '门店余额', desc: fee > 0 ? ('扣款 ¥' + fee + '（余额 ¥' + v.userBalance + '）') : '本场免报名费', available: v.userBalance >= fee, reason: '余额不足，还差 ¥' + Math.max(fee - v.userBalance, 0), color: '#E8C275' }
+	]
 })
 
 /* ---------------- 初始化：座位回填 + 默认支付方式 ---------------- */
-const initPicks = (data : GameSignupInfo) : void => {
+const initPicks = () : void => {
+	const ts : SignupTable[] = tables.value
 	const seats : number[] = []
-	for (let i : number = 0; i < data.tables.length; i++) { seats.push(0) }
+	for (let i : number = 0; i < ts.length; i++) { seats.push(0) }
 
-	// 默认停在第一张有空位的桌：满桌切过去也选不了座位
-	let firstFree : number = 0
-	for (let i : number = 0; i < data.tables.length; i++) {
-		if (data.tables[i].free > 0) { firstFree = i; break }
+	// 默认停在第一张有空位的桌（buildTables 已按占座算好空位，满桌不可选）
+	for (let i : number = 0; i < ts.length; i++) {
+		if (ts[i].free > 0) { activeTable.value = i; break }
 	}
-	activeTable.value = firstFree
 
-	// 已报名的人回看本页：把当时锁定的座位回填高亮
-	const mine : number[] = joinedSeatOf(data.game.id)
-	if (mine[0] > 0 && mine[0] <= seats.length) {
-		seats[mine[0] - 1] = mine[1]
-		pickedTable.value = mine[0] - 1
-		activeTable.value = mine[0] - 1
+	// 已报名回看：接口桌位里标记的"我的座位"回填高亮；接口没带再退回本地报名记录
+	const mine : number[] = mineSeatOf(ts)
+	if (mine[0] < 0 && (info.value as MatchDetailVO).joined) {
+		const local : number[] = joinedSeatOf(String((info.value as MatchDetailVO).id))
+		mine[0] = local[0] - 1
+		mine[1] = local[1]
+	}
+	if (mine[0] >= 0 && mine[0] < seats.length && mine[1] > 0) {
+		seats[mine[0]] = mine[1]
+		pickedTable.value = mine[0]
+		activeTable.value = mine[0]
 	}
 
 	pickedSeats.value = seats
-	payKey.value = firstAvailablePay(data.payMethods)
+	payKey.value = firstAvailablePay(payMethods.value)
+}
+
+// 接口桌位里找"我的座位"：返回 [桌下标, 座位号]，没找到返回 [-1, 0]
+const mineSeatOf = (ts : SignupTable[]) : number[] => {
+	for (let i : number = 0; i < ts.length; i++) {
+		const ss : SignupSeat[] = ts[i].seats
+		for (let j : number = 0; j < ss.length; j++) {
+			if (ss[j].mine) { return [i, ss[j].no] }
+		}
+	}
+	return [-1, 0]
 }
 
 const firstAvailablePay = (list : PayMethod[]) : string => {
@@ -397,22 +453,44 @@ const formatChips = (n : number) : string => {
 	return out
 }
 
-const statusColor = (status : string) : string => {
-	if (status == '进行中') { return '#D9A441' }
-	if (status == '报名中') { return '#E8C275' }
-	if (status == '即将开始') { return '#7AB6F2' }
+const statusColor = (code : string) : string => {
+	if (code == 'P') { return '#D9A441' }		// 进行中
+	if (code == 'C') { return '#E8C275' }		// 报名中
 	return '#A0A5A3'
 }
 
-const statusBg = (status : string) : string => {
-	if (status == '进行中') { return 'rgba(217,164,65,0.20)' }
-	if (status == '报名中') { return 'rgba(232,194,117,0.22)' }
-	if (status == '即将开始') { return 'rgba(96,160,210,0.20)' }
+const statusBg = (code : string) : string => {
+	if (code == 'P') { return 'rgba(217,164,65,0.20)' }
+	if (code == 'C') { return 'rgba(232,194,117,0.22)' }
 	return 'rgba(255,255,255,0.08)'
 }
 
-const statusBgStyle = computed<string>((): string => 'background-color:' + statusBg(info.value.game.status) + ';')
-const statusColorStyle = computed<string>((): string => 'color:' + statusColor(info.value.game.status) + ';')
+const statusBgStyle = computed<string>((): string => 'background-color:' + statusBg((info.value as MatchDetailVO).status) + ';')
+const statusColorStyle = computed<string>((): string => 'color:' + statusColor((info.value as MatchDetailVO).status) + ';')
+
+/* ---------------- 头部信息展示 ---------------- */
+// uvue 编译器对模板里 ref 的判空不做 TS 收窄（即使外层 v-if 已判空），
+// 模板统一改为消费这些兜底 computed，消除 "possibly null" 编译警告
+const heroStoreName = computed<string>((): string => info.value == null ? '' : info.value.storeName)
+const heroStatusText = computed<string>((): string => info.value == null ? '' : statusLabelOf(info.value.status))
+const heroName = computed<string>((): string => info.value == null ? '' : info.value.name)
+const heroStoreAddr = computed<string>((): string => info.value == null ? '' : info.value.storeAddress)
+const heroTypeName = computed<string>((): string => info.value == null ? '' : info.value.typeName)
+const heroStartTime = computed<string>((): string => info.value == null ? '' : formatStart(info.value.startTime))
+const infoJoined = computed<boolean>((): boolean => info.value != null && info.value.joined == true)
+const infoLevelText = computed<string>((): string => info.value == null ? '' : 'Lv.' + info.value.currentLevel)
+const infoMinChipsText = computed<string>((): string => {
+	const vo = info.value
+	return vo == null || Number(vo.minChips) <= 0 ? '—' : formatChips(vo.minChips)
+})
+const infoMaxChipsText = computed<string>((): string => {
+	const vo = info.value
+	return vo == null || Number(vo.maxChips) <= 0 ? '—' : formatChips(vo.maxChips)
+})
+const infoOriginChipsText = computed<string>((): string => info.value == null ? '—' : formatChips(info.value.originChips))
+const infoTotalCount = computed<number>((): number => info.value == null ? 0 : Number(info.value.totalPlayerCount ?? 0))
+const infoCurrentCount = computed<number>((): number => info.value == null ? 0 : Number(info.value.currentPlayerCount ?? 0))
+const infoRemainMushText = computed<string>((): string => info.value == null ? '—' : info.value.remainReliveCount + ' / ' + info.value.mushReliveCount)
 
 // 座位坐标：椭圆环上均匀分布，0 号槽位在正上方（荷官）
 const seatStyle = (slot : number) : string => {
@@ -424,44 +502,29 @@ const seatStyle = (slot : number) : string => {
 }
 
 /* ---------------- 概览 / 信息 ---------------- */
-const addrText = computed<string>((): string => {
-	const i : GameSignupInfo = info.value
-	return i.address.length > 0 ? (i.city + ' · ' + i.address) : i.city
+const feeText = computed<string>((): string => {
+	const v : MatchDetailVO = info.value as MatchDetailVO
+	if (v.joinInviteCard > 0) { return v.joinInviteCard.toString() + ' 张直通函' }
+	if (v.joinMonthTicket > 0) { return v.joinMonthTicket.toString() + ' 月票' }
+	return '¥' + v.joinAmount + '(' + v.joinTicket + '张门票)'
 })
 
-const feeText = computed<string>((): string => info.value.fee > 0 ? ('报名费 ¥' + info.value.fee) : '免报名费')
-
-// 「赛事信息」5 张主题卡需要的派生数据：进度条宽度 + 复活文案
-// 旧的 stats 数组已废弃（stat-grid 被 info-card 整体替代）
+// 存活率 = 存活人数 / 参赛人数
 const signupAlivePct = computed<number>((): number => {
-	const i : GameSignupInfo = info.value
-	if (i.entrants <= 0) { return 0 }
-	return Math.round(i.alive / i.entrants * 100)
+	const v : MatchDetailVO = info.value as MatchDetailVO
+	if (v.totalPlayerCount <= 0) { return 0 }
+	return Math.round(v.currentPlayerCount / v.totalPlayerCount * 100)
 })
 const signupAliveBarStyle = computed<string>((): string => 'width:' + signupAlivePct.value.toString() + '%;')
 
-// 蘑菇条按"剩余"比例填充金色：让"还有几个能拿"一眼可见
-const fungusUsed = computed<number>((): number => {
-	const i : GameSignupInfo = info.value
-	const used : number = i.mushroomTotal - i.mushroomLeft
-	return used < 0 ? 0 : used
-})
-const fungusBarStyle = computed<string>((): string => {
-	const i : GameSignupInfo = info.value
-	if (i.mushroomTotal <= 0) { return 'width:0%;' }
-	const left : number = i.mushroomLeft < 0 ? 0 : i.mushroomLeft
-	const pct : number = Math.round(left / i.mushroomTotal * 100)
-	return 'width:' + pct.toString() + '%;'
-})
-
 const rebuyText = computed<string>((): string => {
-	const n : number = info.value.rebuyCount
+	const n : number = (info.value as MatchDetailVO).userReliveCount
 	return n > 0 ? (n.toString() + ' 次') : '不支持'
 })
 
 /* ---------------- 座位 ---------------- */
 const activeTableInfo = computed<SignupTable>((): SignupTable => {
-	const list : SignupTable[] = info.value.tables
+	const list : SignupTable[] = tables.value
 	const idx : number = activeTable.value
 	if (idx < 0 || idx >= list.length) {
 		return { no: 0, seats: [], takenCount: 0, free: 0 }
@@ -500,7 +563,7 @@ const seatHintText = computed<string>((): string => pickedTable.value < 0 ? '点
 const onTapTable = (ti : number) : void => { activeTable.value = ti }
 
 const onTapSeat = (s : SignupSeat) : void => {
-	if (info.value.joined) {
+	if ((info.value as MatchDetailVO).joined) {
 		uni.showToast({ title: '你已报名本场比赛', icon: 'none' })
 		return
 	}
@@ -518,21 +581,21 @@ const payDescOf = (m : PayMethod) : string => m.available ? m.desc : m.reason
 const payBarStyle = (m : PayMethod) : string => 'background-color:' + m.color + ';'
 
 const payHint = computed<string>((): string => {
-	const pay : PayMethod | null = payOf(info.value.payMethods, payKey.value)
+	const pay : PayMethod | null = payOf(payMethods.value, payKey.value)
 	return pay == null ? '暂无可用支付方式' : ('已选：' + pay.name)
 })
 
 const footPayText = computed<string>((): string => {
-	const pay : PayMethod | null = payOf(info.value.payMethods, payKey.value)
+	const pay : PayMethod | null = payOf(payMethods.value, payKey.value)
 	if (pay == null) { return '未选择支付方式' }
 	const tail : string = pay.available ? '' : ('（' + pay.reason + '）')
 	return '支付：' + pay.name + tail
 })
 
-const confirmText = computed<string>((): string => info.value.joined ? '已报名' : '确认参赛')
+const confirmText = computed<string>((): string => (info.value as MatchDetailVO).joined ? '已报名' : '确认参赛')
 
 const onTapPay = (m : PayMethod) : void => {
-	if (info.value.joined) {
+	if ((info.value as MatchDetailVO).joined) {
 		uni.showToast({ title: '你已报名本场比赛', icon: 'none' })
 		return
 	}
@@ -544,9 +607,16 @@ const onTapPay = (m : PayMethod) : void => {
 }
 
 /* ---------------- 确认参赛 ---------------- */
+// 前端支付方式 key → 后端 payType 取值（若与后端枚举不一致只需改这张表）
+const PAY_TYPES : Record<string, string> = {
+	ticket: 'ticket',
+	monthly: 'month-ticket',
+	direct: 'invite-card',
+	balance: 'balance'
+}
+
 const onConfirm = () : void => {
-	const i : GameSignupInfo = info.value
-	if (i.joined) {
+	if ((info.value as MatchDetailVO).joined) {
 		uni.showToast({ title: '你已报名本场比赛，座位已锁定', icon: 'none' })
 		return
 	}
@@ -556,7 +626,7 @@ const onConfirm = () : void => {
 		uni.showToast({ title: '请先点击选择一个座位', icon: 'none' })
 		return
 	}
-	const pay : PayMethod | null = payOf(i.payMethods, payKey.value)
+	const pay : PayMethod | null = payOf(payMethods.value, payKey.value)
 	if (pay == null) {
 		uni.showToast({ title: '请选择支付方式', icon: 'none' })
 		return
@@ -565,10 +635,20 @@ const onConfirm = () : void => {
 		uni.showToast({ title: pay.reason, icon: 'none' })
 		return
 	}
+	if (joining.value) { return }
 
-	markJoined(i.game.id, t + 1, seatNo)
-	uni.showToast({ title: '报名成功 · 座位已锁定', icon: 'success' })
-	setTimeout((): void => { uni.navigateBack() }, 900)
+	// POST /match-user/{matchId}/join：payType + 桌号(1 起) + 座位(1~10)
+	joining.value = true
+	const matchId : string = String((info.value as MatchDetailVO).id)
+	joinMatch(matchId, PAY_TYPES[pay.key] || pay.key, t + 1, seatNo).then((): void => {
+		joining.value = false
+		markJoined(matchId, t + 1, seatNo)
+		uni.showToast({ title: '报名成功 · 座位已锁定', icon: 'success' })
+		uni.redirectTo({ url: '/pages/game-detail/game-detail?id=' + matchId })
+	}).catch((e : any) : void => {
+		joining.value = false
+		uni.showToast({ title: e && e.message ? e.message : '报名失败，请重试', icon: 'none' })
+	})
 }
 </script>
 
@@ -589,6 +669,10 @@ const onConfirm = () : void => {
 
 	.scroll { flex: 1; }
 	.wrap { padding: 24rpx 0 40rpx; }
+
+	/* 加载 / 失败占位 */
+	.state-box { align-items: center; padding: 160rpx 0 80rpx; }
+	.state-text { font-size: 24rpx; color: #6E7573; }
 
 	/* ============ 赛事概览 ============ */
 	.hero {

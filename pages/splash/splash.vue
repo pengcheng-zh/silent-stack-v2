@@ -110,7 +110,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { splashReturnUrl } from '@/common/splash-guard'
+import { splashGoNext } from '@/common/splash-guard'
 
 /* ================= 几何常量（rpx，750 基准，1px ≈ 2rpx） =================
    红环：外径 640，厚 20rpx(≈10px)，左上/右下各留 70° 缺口给双A和星
@@ -205,10 +205,10 @@ const at = (delay: number, task: () => void): void => {
     timers.push(setTimeout(task, delay))
 }
 
-// 播放结束后的落地页：回到"用户进来时"的那一页（H5 在排行榜刷新 → 播完仍回排行榜）；
-// 入口页未知（App 冷启动默认首页就是 splash）或不该落地时，由中间件兜底回广场
+// 播放结束后的落地：由 splash-guard 统一决策 —— tab 页直接落地；
+// 二级页先落主页再压栈，保证刷新后原生返回键可回主页（入口未知时兜底回广场）
 const goNext = (): void => {
-    uni.reLaunch({ url: splashReturnUrl() })
+    splashGoNext()
 }
 
 const play = (): void => {

@@ -24,11 +24,10 @@
 						</view>
 					</view>
 					<text class="hero-tier" :style="goldStyle">{{ heroRankText }}</text>
-					<text class="hero-city">{{ heroSubText }}</text>
 				</view>
 				<view class="hero-points">
 					<text class="hero-points-num">{{ formatNum(heroPoints) }}</text>
-					<text class="hero-points-label">当前段位分</text>
+					<text class="hero-points-label">总段位分</text>
 				</view>
 			</view>
 
@@ -440,9 +439,12 @@ const loadRecords = () : Promise<void> => {
 	})
 }
 
-// 首次进入：总览 + 默认筛选（全部时间 / 全部对局）第一页
-loadSummary()
-loadRecords()
+// 每次进入页面（含从详情返回）都刷新：总览 + 当前筛选的第一页
+onShow((): void => {
+	pageIndex.value = 1
+	loadSummary()
+	loadRecords()
+})
 
 /* ---------------- 筛选切换 ---------------- */
 const onTimeRange = (v : string) : void => {
@@ -512,7 +514,7 @@ const onRefresh = () : void => {
 }
 
 const onRecordTap = (r : MatchRecordVO) : void => {
-	uni.showToast({ title: r.title + ' · 第 ' + r.rank + ' 名', icon: 'none' })
+	uni.navigateTo({ url: '/pages/game-detail/game-detail?id=' + r.id })
 }
 </script>
 

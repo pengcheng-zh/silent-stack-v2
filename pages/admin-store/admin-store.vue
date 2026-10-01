@@ -106,13 +106,13 @@
 					<text class="act-text">编辑</text>
 				</view>
 				<view v-if="s.canViewBilling" class="act" @tap="onTapBills(s)">
-					<text class="act-text">查看账单</text>
+					<text class="act-text">账单</text>
 				</view>
 				<view v-if="s.canAddOwner" class="act" @tap="onTapEditManagers(s)">
-					<text class="act-text">店长编辑</text>
+					<text class="act-text">店长</text>
 				</view>
 				<view v-if="s.canAddManager" class="act" @tap="onTapEditAdmins(s)">
-					<text class="act-text">管理员编辑</text>
+					<text class="act-text">管理员</text>
 				</view>
 				<view class="act act-danger" @tap="onTapDelete(s)">
 					<text class="act-text act-danger-text">删除</text>
@@ -326,8 +326,10 @@ const loadMore = () : void => {
 		for (let i : number = 0; i < chunk.length; i++) { next.push(chunk[i]) }
 		visible.value = next
 		currentPage.value = nextPage
+		// total 仅用于顶部「N 家门店」展示；翻页终止判断以本页实际返回条数为准，
+		// 避免 total 缺失/为 0 时第一页后误判「没有更多」导致触底加载失效
 		total.value = page.total ?? visible.value.length
-		if (chunk.length == 0 || next.length >= total.value) { noMore.value = true }
+		if (chunk.length < PAGE_SIZE) { noMore.value = true }
 		firstLoad.value = false
 		loadError.value = ''
 	}).catch((err : Error) => {
@@ -463,7 +465,7 @@ const onTapSave = () : void => {
 		? createStore(d.name.trim(), d.city, d.address, type, latStr, lngStr)
 		: updateStore(d.storeId, d.name.trim(), d.city, d.address, type, latStr, lngStr)
 
-	task.then(() => {
+	task.then((res : any) => {
 		// 更新本地列表：edit 原地替换；create 插头部 + 总量 +1
 		if (d.mode == 'edit') {
 			const i : number = indexOfStore(d.storeId)
@@ -479,8 +481,12 @@ const onTapSave = () : void => {
 			}
 			uni.showToast({ title: '已保存', icon: 'none' })
 		} else {
-			// create 后端返回的 id 由 then 参数决定；此处用 Date.now 临时占位，刷新后自动覆盖
+			// create：优先取后端返回的 id（兼容直接返回 id 或返回含 id 的对象）；
+			// 拿不到时用 Date.now 临时占位，重新拉列表后自动覆盖
+			const newId : number | string = res == null ? Date.now()
+				: (typeof res == 'object' && res.id != null ? res.id : (typeof res != 'object' ? res : Date.now()))
 			const newItem : AdminStore = {
+				id: newId,
 				name: d.name.trim(),
 				city: d.city,
 				address: d.address,
@@ -533,9 +539,18 @@ const onTapDelete = (s : AdminStore) : void => {
 	})
 }
 
-/* ---------------- 账单（toast 占位） ---------------- */
+/* ---------------- 账单（跳转门店账单页） ---------------- */
 const onTapBills = (s : AdminStore) : void => {
-	uni.showToast({ title: s.name + ' · 账单即将上线', icon: 'none' })
+	let name : string = s.name
+	// #ifdef H5
+	const enc : string | null = encodeURIComponent(s.name)
+	if (enc != null) { name = enc }
+	// #endif
+	uni.navigateTo({
+		url: '/pages/admin-store/billing?storeId=' + s.id
+			+ '&storeName=' + name
+			+ '&storeType=' + s.storeType
+	})
 }
 
 /* ---------------- 选人弹层 ---------------- */

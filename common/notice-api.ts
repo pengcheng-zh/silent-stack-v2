@@ -1,4 +1,4 @@
-import { httpGet } from './http'
+import { httpGet, httpPost } from './http'
 
 /** 公告 VO（来自 /announcement/list） */
 export type AnnouncementVO = {
@@ -55,4 +55,20 @@ export type AnnouncementSavePayload = {
 /** POST /announcement/create —— 发布公告；payload 带 id 时为更新 */
 export const createAnnouncement = (payload : AnnouncementSavePayload) : Promise<any> => {
 	return httpPost('/announcement/create', payload)
+}
+
+/** GET /announcement/recent —— 最近一条公告（广场页弹窗用）；无数据 / 已停止 / 空公告返回 null */
+export const fetchRecentAnnouncement = () : Promise<AnnouncementRow | null> => {
+	return httpGet<any>('/announcement/recent').then((r : any) => {
+		const it : any = Array.isArray(r) ? (r.length > 0 ? r[0] : null) : r
+		if (it == null) { return null }
+		const row : AnnouncementRow = {
+			id: String(it.id ?? ''),
+			title: (it.title ?? '').toString(),
+			content: (it.content ?? '').toString(),
+			status: normalizeStatus((it.status ?? '').toString()),
+			date: fmtDate((it.createTime ?? '').toString())
+		}
+		return (row.status == 'on' && row.title != '' && row.content != '') ? row : null
+	})
 }

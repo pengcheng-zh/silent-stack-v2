@@ -102,6 +102,15 @@
 			}
 		},
 		{
+			"path": "pages/jiude-billing/jiude-billing",
+			"style": {
+				"navigationBarTitleText": "酒德账单",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
 			"path": "pages/jiude-rank/jiude-rank",
 			"style": {
 				"navigationBarTitleText": "酒德积分排行",
@@ -153,6 +162,15 @@
 			"path": "pages/admin-store/admin-store",
 			"style": {
 				"navigationBarTitleText": "店铺管理",
+				"navigationBarBackgroundColor": "#0B0D0C",
+				"navigationBarTextStyle": "white",
+				"backgroundColor": "#0B0D0C"
+			}
+		},
+		{
+			"path": "pages/admin-store/billing",
+			"style": {
+				"navigationBarTitleText": "门店账单",
 				"navigationBarBackgroundColor": "#0B0D0C",
 				"navigationBarTextStyle": "white",
 				"backgroundColor": "#0B0D0C"
@@ -242,7 +260,7 @@
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "white",
-		"navigationBarTitleText": "静默筹码",
+		"navigationBarTitleText": "Silent Stack",
 		"navigationBarBackgroundColor": "#0B0D0C",
 		"backgroundColor": "#0B0D0C"
 	},

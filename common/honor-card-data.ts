@@ -22,23 +22,38 @@ type UserHonorRow = {
 	createTime : string
 }
 
+/** UserHonorRow 集合（兼容 {list} / {records} / 纯数组）→ MyHonorCard[] */
+const mapHonorRows = (object : any) : MyHonorCard[] => {
+	const arr : any = Array.isArray(object) ? object : ((object && (object.list || object.records)) || [])
+	const list : MyHonorCard[] = []
+	for (let i = 0; i < arr.length; i++) {
+		const r = arr[i] as UserHonorRow
+		list.push({
+			id: r.id,
+			honorId: r.honorId,
+			name: r.honorName || '',
+			image: r.imageUrl || '',
+			active: r.defaultActive == 'A'
+		})
+	}
+	return list
+}
+
 /** 拉取我获得的荣誉卡列表（active = defaultActive == 'A'） */
 export const fetchMyHonorCards = () : Promise<MyHonorCard[]> => {
-	return httpGet<UserHonorRow[]>('/user-honor/my-list').then((object : any) => {
-		const arr : any = object && object.list || object.list || []
-		const list : MyHonorCard[] = []
-		for (let i = 0; i < arr.length; i++) {
-			const r = arr[i] as UserHonorRow
-			list.push({
-				id: r.id,
-				honorId: r.honorId,
-				name: r.honorName || '',
-				image: r.imageUrl || '',
-				active: r.defaultActive == 'A'
-			})
-		}
-		return list
-	})
+	return httpGet<any>('/user-honor/my-list').then((object : any) => mapHonorRows(object))
+}
+
+/* ---------------- 后台：查看 / 授予指定用户的荣誉 ---------------- */
+
+/** 后台查看指定用户的荣誉卡列表（GET /user-honor/list?userId=） */
+export const fetchUserHonorCards = (userId : number) : Promise<MyHonorCard[]> => {
+	return httpGet<any>('/user-honor/list', { userId: userId }).then((object : any) => mapHonorRows(object))
+}
+
+/** 后台给指定用户授予荣誉（POST /user-honor/grant） */
+export const grantUserHonor = (userId : number, honorId : number) : Promise<any> => {
+	return httpPost('/user-honor/create', { userId: userId, honorId: honorId })
 }
 
 /** 选用某张荣誉卡作为展示中（POST /user-honor/{honorId}/use） */

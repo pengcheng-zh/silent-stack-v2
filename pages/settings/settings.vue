@@ -150,7 +150,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getLoginResult, updateLoginResult, clearLoginResult, updatePassword, updateProfile, fetchAndSaveProfile } from '@/common/user-api'
+import { getLoginResult, updateLoginResult, clearLoginResult, updatePassword, updateProfile, fetchMyInfo } from '@/common/user-api'
+import type { CustomerVO } from '@/common/user-api'
 import { getMyHonorCard } from '@/common/honor-card-data'
 
 /* ---------------- 用户信息（来自登录态） ---------------- */
@@ -194,11 +195,12 @@ const onTapAvatar = () : void => {
 			if (paths.length > 0) {
 				// TODO 接后端：先调上传接口拿到 URL，再把 URL 传给 updateProfile
 				user.value.avatar = paths[0]
-				updateProfile({ avatar: paths[0] }).then(() => {
-					fetchAndSaveProfile().then((profile) => {
-						if (profile) { user.value.avatar = profile.avatar || paths[0] }
-					})
-				}).then(() => {
+				updateProfile({ avatar: paths[0] }).then(() : Promise<CustomerVO> => {
+					return fetchMyInfo()
+				}).then((profile : CustomerVO) => {
+					const avatar : string = profile.avatar || paths[0]
+					user.value.avatar = avatar
+					updateLoginResult({ avatar: avatar })
 					uni.showToast({ title: '头像已更新', icon: 'none' })
 				}).catch((e : any) => {
 					uni.showToast({ title: e && e.message ? e.message : '头像更新失败', icon: 'none' })
@@ -228,17 +230,13 @@ const onTapNickSave = () : void => {
 		return
 	}
 	nickSaving.value = true
-	updateProfile({ username: name }).then(() => {
-		// 成功后拉最新资料，保证 storage 与服务端一致
-		return fetchAndSaveProfile()
-	}).then((profile) => {
+	updateProfile({ username: name }).then((): Promise<CustomerVO> => {
+		// 成功后重新拉 /user/info，保证页面与 storage 和服务端一致
+		return fetchMyInfo()
+	}).then((profile : CustomerVO) => {
 		nickSaving.value = false
-		if (profile) {
-			user.value.username = profile.username
-		} else {
-			user.value.username = name
-			updateLoginResult({ username: name })
-		}
+		user.value.username = profile.username
+		updateLoginResult({ username: profile.username })
 		nickDialog.value = false
 		uni.showToast({ title: '昵称已更新', icon: 'none' })
 	}).catch((e : any) => {

@@ -49,6 +49,54 @@
 			</view>
 		</view>
 
+		<!-- ============ 设置 / 管理：紧跟个人名片的快捷入口，一行图标+文字 ============ -->
+		<view class="section">
+			<view class="section-head">
+				<view class="section-title-wrap">
+					<view class="section-bar"></view>
+					<text class="section-title">设置</text>
+				</view>
+			</view>
+
+			<view class="quick-card">
+				<!-- 隐身开关：点击格子切换，图标变绿即开启 -->
+				<view class="quick-cell" @tap="onToggleStealth">
+					<view class="quick-icon" :class="{ 'quick-icon-on': stealthOn }">
+						<text class="quick-icon-glyph" :class="{ 'quick-icon-glyph-on': stealthOn }">隐</text>
+					</view>
+					<text class="quick-text">隐身模式</text>
+				</view>
+
+				<view class="quick-divider"></view>
+
+				<view class="quick-cell" @tap="onTapSettings">
+					<view class="quick-icon">
+						<text class="quick-icon-glyph">⚙</text>
+					</view>
+					<text class="quick-text">账号设置</text>
+				</view>
+
+				<template v-if="isAdmin">
+					<view class="quick-divider"></view>
+					<view class="quick-cell" @tap="onTapAdmin">
+						<view class="quick-icon quick-icon-admin-bg">
+							<text class="quick-icon-glyph quick-icon-glyph-admin">管</text>
+						</view>
+						<text class="quick-text">管理后台</text>
+					</view>
+				</template>
+
+				<!-- 加盟咨询：对所有用户开放，点击弹出客服二维码图片 -->
+				<view class="quick-divider"></view>
+				<view class="quick-cell" @tap="onTapConsult">
+					<view class="quick-icon quick-icon-admin-bg">
+						<text class="quick-icon-glyph quick-icon-glyph-admin">加</text>
+					</view>
+					<text class="quick-text">加盟咨询</text>
+				</view>
+			</view>
+		</view>
+
 		<!-- ============ 我的酒德 ============ -->
 		<view class="section">
 			<view class="section-head">
@@ -135,62 +183,22 @@
 			</view>
 		</view>
 
-		<!-- ============ 设置 / 管理 ============ -->
-		<view class="section">
-			<view class="section-head">
-				<view class="section-title-wrap">
-					<view class="section-bar"></view>
-					<text class="section-title">设置</text>
-				</view>
-			</view>
-
-			<view class="entry-card">
-				<!-- 隐身开关：开启后排行榜不展示我、对局中隐藏头像 -->
-				<view class="entry-row entry-row-switch">
-					<view class="entry-left">
-						<view class="entry-icon entry-icon-stealth">隐</view>
-						<view class="entry-text-wrap">
-							<text class="entry-text">隐身模式</text>
-							<text class="entry-sub">开启后对他人不可见</text>
-						</view>
-					</view>
-					<switch
-						class="entry-switch"
-						:checked="stealthOn"
-						color="#2AA97A"
-						@change="onStealthChange"
-					></switch>
-				</view>
-
-				<view class="entry-row" @tap="onTapSettings">
-					<view class="entry-left">
-						<view class="entry-icon entry-icon-default">⚙</view>
-						<view class="entry-text-wrap">
-							<text class="entry-text">账号设置</text>
-						</view>
-					</view>
-					<text class="entry-arrow">›</text>
-				</view>
-
-				<view v-if="isAdmin" class="entry-row" @tap="onTapAdmin">
-					<view class="entry-left">
-						<view class="entry-icon entry-icon-admin">管</view>
-						<view class="entry-text-wrap">
-							<text class="entry-text">管理后台</text>
-						</view>
-					</view>
-					<view class="entry-right">
-						<view class="admin-badge">
-							<text class="admin-badge-text">ADMIN</text>
-						</view>
-						<text class="entry-arrow">›</text>
-					</view>
-				</view>
-			</view>
-		</view>
-
 		<view class="footer-blank"></view>
 	</scroll-view>
+
+	<!-- ============ 加盟咨询弹窗：展示客服二维码图片 ============ -->
+	<view v-if="consultVisible" class="cs-overlay" @tap="onCloseConsult">
+		<view class="cs-card" @tap.stop="">
+			<view class="cs-head">
+				<text class="cs-title">加盟咨询</text>
+				<text class="cs-sub">长按识别二维码，联系招商客服</text>
+			</view>
+			<image class="cs-img" src="/static/customer.png" mode="widthFix" />
+			<view class="cs-close" @tap="onCloseConsult">
+				<text class="cs-close-text">关闭</text>
+			</view>
+		</view>
+	</view>
 </template>
 
 <script setup lang="ts">
@@ -278,7 +286,7 @@ const statCells = computed<{ value : string, label : string, color : string }[]>
 	return [
 		{ value: games.toString(),    label: '总对局',   color: '#EDEFEE' },
 		{ value: wins.toString(),    label: '获胜',     color: '#E8C275' },
-		{ value: winrate.value,              label: '胜率',     color: '#2AA97A' },
+		{ value: winrate.value,     label: '胜率',     color: '#2AA97A' },
 		{ value: itm.toString(),     label: '进圈',     color: '#57C79A' }
 	]
 })
@@ -293,21 +301,25 @@ const globalMonthTicket = computed<number>(() : number => profile.value ? (profi
 const globalInviteCard = computed<number>(() : number => profile.value ? (profile.value.inviteCard ?? 0) : 0)
 
 /* ---------------- 入口 ---------------- */
-// 隐身开关：初始值取 /user/info 的 stealth（Y/N）；切换调 POST /user/stealth，失败回滚
+// 隐身开关：初始值取 /user/info 的 stealth（Y/N）；点击快捷格切换，调 POST /user/stealth，失败回滚
 const stealthOn = ref<boolean>(false)
 
-const onStealthChange = (e : any) : void => {
-	const next : boolean = e.detail.value
+const onToggleStealth = () : void => {
+	const next : boolean = !stealthOn.value
 	stealthOn.value = next
-	// 调用隐身接口（无请求体，后端自行切换），失败回滚开关状态
 	setStealth().catch(() => {
 		stealthOn.value = !next
 		uni.showToast({ title: '设置失败，请重试', icon: 'none' })
 	})
 }
 
+/* ---------------- 加盟咨询弹窗 ---------------- */
+const consultVisible = ref<boolean>(false)
+const onTapConsult = () : void => { consultVisible.value = true }
+const onCloseConsult = () : void => { consultVisible.value = false }
+
 // 管理员：roleId == 1 视为管理员（后端角色约定）
-const isAdmin = computed<boolean>(() : boolean => profile.value != null && profile.value.roleId == 1)
+const isAdmin = computed<boolean>(() : boolean => profile.value != null && profile.value.roleId !== 4)
 
 const onTapSettings = () : void => {
 	uni.navigateTo({ url: '/pages/settings/settings' })
@@ -508,59 +520,78 @@ const onTapAdmin = () : void => {
 		margin: 0 22rpx;
 	}
 
-	/* ============ 设置入口 ============ */
-	.entry-card {
+	/* ============ 设置快捷入口（图标+文字一行排布） ============ */
+	.quick-card {
+		flex-direction: row;
+		align-items: stretch;
 		background-color: #1A1E1D;
 		border-radius: 28rpx;
 		border: 1rpx solid #2A2F2D;
-		overflow: hidden;
-		box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.35);
+		padding: 30rpx 14rpx;
+		box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.38);
 	}
-	.entry-row {
-		flex-direction: row;
+	.quick-cell {
+		flex: 1;
+		flex-direction: column;
 		align-items: center;
-		justify-content: space-between;
-		padding: 28rpx 28rpx;
-		border-bottom: 1rpx solid rgba(42, 47, 45, 0.6);
 	}
-	.entry-row:last-child { border-bottom-width: 0; }
-	.entry-left { flex-direction: row; align-items: center; }
-	.entry-icon {
-		width: 56rpx;
-		height: 56rpx;
-		border-radius: 16rpx;
+	.quick-divider { width: 1rpx; background-color: #242827; }
+	.quick-icon {
+		width: 76rpx;
+		height: 76rpx;
+		border-radius: 22rpx;
 		align-items: center;
 		justify-content: center;
-		background-color: rgba(126, 130, 129, 0.18);
+		background-color: rgba(126, 130, 129, 0.16);
 	}
-	.entry-icon-default { color: #EDEFEE; }
-	.entry-icon-admin {
-		background-color: rgba(232, 194, 117, 0.20);
-		color: #E8C275;
-	}
-	/* 隐身图标：偏冷的中性灰，与"我"徽章的金黄、"管"的金底形成三角语义：我是谁 / 隐身 / 后台 */
-	.entry-icon-stealth {
-		background-color: rgba(126, 130, 129, 0.25);
-		color: #C7CDCB;
-	}
-	.entry-icon text, .entry-icon-default { font-size: 28rpx; font-weight: 700; color: #EDEFEE; }
-	.entry-icon-admin { font-size: 26rpx; }
-	/* 文字块统一通过 .entry-text-wrap 提供左间距，避免在 .entry-text 上再写一遍导致双重 margin */
-	.entry-text { font-size: 28rpx; color: #EDEFEE; font-weight: 500; }
-	.entry-text-wrap { flex-direction: column; margin-left: 18rpx; }
-	.entry-sub { font-size: 20rpx; color: #7E8281; margin-top: 4rpx; }
-	/* 整行可点区域只到文字末尾就停，让开关独占右侧——非整行点击 */
-	.entry-row-switch { align-items: center; }
-	.entry-switch { transform: scale(0.9); }
-	.entry-arrow { font-size: 36rpx; color: #7E8281; margin-left: 12rpx; line-height: 36rpx; }
-	.entry-right { flex-direction: row; align-items: center; }
-	.admin-badge {
-		padding: 4rpx 14rpx;
-		border-radius: 999rpx;
-		background-color: rgba(232, 194, 117, 0.20);
-		border: 1rpx solid rgba(232, 194, 117, 0.45);
-	}
-	.admin-badge-text { font-size: 18rpx; color: #E8C275; font-weight: 700; letter-spacing: 1rpx; }
+	/* 隐身开启态：图标底与字同步转绿，与右侧金色「管」形成状态区分 */
+	.quick-icon-on { background-color: rgba(42, 169, 122, 0.20); }
+	.quick-icon-admin-bg { background-color: rgba(232, 194, 117, 0.18); }
+	.quick-icon-glyph { font-size: 30rpx; font-weight: 700; color: #C7CDCB; }
+	.quick-icon-glyph-on { color: #2AA97A; }
+	.quick-icon-glyph-admin { color: #E8C275; }
+	.quick-text { font-size: 24rpx; color: #EDEFEE; font-weight: 600; margin-top: 12rpx; }
 
 	.footer-blank { height: 60rpx; }
+
+	/* ============ 加盟咨询弹窗 ============ */
+	.cs-overlay {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.75);
+		align-items: center;
+		justify-content: center;
+		z-index: 100000;
+		padding: 40rpx;
+	}
+	.cs-card {
+		flex-direction: column;
+		align-items: center;
+		width: 560rpx;
+		max-width: 100%;
+		background-color: #1A1E1D;
+		border-radius: 28rpx;
+		border: 1rpx solid #2A2F2D;
+		padding: 34rpx 30rpx 28rpx;
+		box-shadow: 0 6rpx 20rpx rgba(0, 0, 0, 0.45);
+	}
+	.cs-head { align-items: center; margin-bottom: 24rpx; }
+	.cs-title { font-size: 32rpx; color: #EDEFEE; font-weight: 700; }
+	.cs-sub { font-size: 21rpx; color: #8F9492; margin-top: 8rpx; }
+	.cs-img {
+		width: 480rpx;
+		border-radius: 16rpx;
+		background-color: #FFFFFF;
+	}
+	.cs-close {
+		margin-top: 28rpx;
+		width: 100%;
+		height: 80rpx;
+		align-items: center;
+		justify-content: center;
+		border-radius: 14rpx;
+		background-color: #1F2322;
+		border: 1rpx solid #2A2F2D;
+	}
+	.cs-close-text { font-size: 26rpx; color: #C7CDCB; font-weight: 600; }
 </style>

@@ -52,6 +52,7 @@ export type SimpleStoreVO = {
 	name : string
 	city : string
 	address : string
+	storeType : string          // 'silent' | 'jiude'
 }
 
 /** 酒德门店（GET /store/list?type=jiude）：仅 id / name / address 三个字段 */
@@ -125,15 +126,34 @@ export const fetchManageStores = (page : number, limit : number) : Promise<Store
 	return httpGet<StorePageVO>('/store/manage-list', { page: page, limit: limit })
 }
 
-/** GET /store/simple-list —— 精简店铺列表（选店弹层用） */
-export const fetchSimpleStores = () : Promise<SimpleStoreVO[]> => {
-	return httpGet<any>('/store/simple-list').then((r : any) => {
+/** 门店账单汇总（GET /store/{storeId}/billing-summary）；BigDecimal 字段可能为 null，展示时需兜底 */
+export type StoreBillingSummaryVO = {
+	totalRecharge : number        // 总充值
+	monthRecharge : number        // 本月充值
+	todayRecharge : number        // 今日充值
+	todayGiftBalance : number     // 今日赠金
+	todayGiftTicket : number      // 今日赠票
+}
+
+/** GET /store/{storeId}/billing-summary —— 门店账单汇总 */
+export const fetchStoreBillingSummary = (storeId : number | string) : Promise<StoreBillingSummaryVO> => {
+	return httpGet<StoreBillingSummaryVO>('/store/' + storeId + '/billing-summary', {})
+}
+
+/** GET /store/simple-list?keyword=xxx&limit=10 —— 精简店铺列表（选店弹层/下拉用）；keyword/limit 可选 */
+export const fetchSimpleStores = (keyword : string = '', storeType : string = '', limit : number = 50) : Promise<SimpleStoreVO[]> => {
+	const params : Record<string, any> = { limit: limit }
+	const kw : string = keyword.trim()
+	if (kw.length > 0) { params.keyword = kw }
+	if (storeType.length > 0) { params.type = storeType }
+	return httpGet<any>('/store/simple-list', params).then((r : any) => {
 		const raw : any[] = Array.isArray(r) ? r : ((r && (r.list || r.records)) || [])
 		return raw.map((it : any) => ({
 			id: it.id,
 			name: (it.name ?? '').toString(),
 			city: (it.city ?? '').toString(),
-			address: (it.address ?? '').toString()
+			address: (it.address ?? '').toString(),
+			storeType: (it.storeType ?? it.type ?? '').toString()
 		}))
 	})
 }

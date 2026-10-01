@@ -16,7 +16,6 @@
 				</view>
 				<view class="cell-main">
 					<text class="cell-title">{{ m.title }}</text>
-					<text class="cell-sub">{{ m.sub }}</text>
 				</view>
 				<text class="cell-arrow">›</text>
 			</view>

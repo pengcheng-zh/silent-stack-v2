@@ -37,13 +37,13 @@
 			<view class="tier-head">
 				<view class="tier-emblem" :style="emblemStyle">
 					<view class="tier-emblem-in" :style="emblemLineStyle">
-						<text class="tier-emblem-text" :style="emblemColorStyle">{{ levelLabel || 'X' }}</text>
+						<text class="tier-emblem-text" :style="emblemColorStyle">{{ info.levelLabel || 'X' }}</text>
 					</view>
 				</view>
 
 				<view class="tier-info">
 					<view class="tier-name-row">
-							<text class="tier-name">{{ levelLabel || 'X' }} 等级</text>
+							<text class="tier-name">{{ info.levelLabel || 'X' }} 等级</text>
 						</view>
 					<text class="tier-progress-tip">{{ progressTip }}</text>
 				</view>
@@ -55,7 +55,7 @@
 					<view class="tier-progress-fill" :style="progressStyle"></view>
 				</view>
 				<view class="tier-progress-meta">
-					<text class="tier-progress-now">{{ formatNum(my.growthValue) }}</text>
+					<text class="tier-progress-now">{{ formatNum(info.totalAmount) }}</text>
 					<text class="tier-progress-target">{{ formatNum(progressTarget) }} 满级</text>
 				</view>
 			</view>
@@ -77,12 +77,10 @@
 			<view class="action-btn action-btn-deposit" @tap="onTapDeposit">
 				<text class="action-btn-icon">+</text>
 				<text class="action-btn-text">存积分</text>
-				<text class="action-btn-sub">从赛事奖励 / 签到</text>
 			</view>
 			<view class="action-btn action-btn-withdraw" @tap="onTapWithdraw">
 				<text class="action-btn-icon">−</text>
 				<text class="action-btn-text">取积分</text>
-				<text class="action-btn-sub">兑换套餐券 / 礼物</text>
 			</view>
 		</view>
 
@@ -110,8 +108,8 @@
 					v-for="(b, bi) in benefitList"
 					:key="b.levelLabel"
 					class="benefit-pill"
-					:class="{ 'benefit-pill-current': b.levelLabel == levelLabel }"
-					:style="benefitPillStyle(bi, b.levelLabel == levelLabel)"
+					:class="{ 'benefit-pill-current': b.levelLabel == info.levelLabel }"
+					:style="benefitPillStyle(bi, b.levelLabel == info.levelLabel)"
 				>
 					<view class="benefit-pill-head">
 						<text class="benefit-pill-label" :style="tierColorStyle(bi)">{{ b.levelLabel }}</text>
@@ -132,7 +130,7 @@
 							<text class="benefit-pill-col">C套餐</text>
 						</view>
 					</view>
-					<view v-if="b.levelLabel == levelLabel" class="benefit-pill-tag">
+					<view v-if="b.levelLabel == info.levelLabel" class="benefit-pill-tag">
 						<text class="benefit-pill-tag-text">当前等级</text>
 					</view>
 				</view>
@@ -180,7 +178,6 @@
 				</view>
 				<view class="entry-row-mid">
 					<text class="entry-row-title">我的存取记录</text>
-					<text class="entry-row-sub">近 {{ records.length }} 条流转 · 4 类酒德币流水</text>
 				</view>
 				<view class="entry-row-tail">
 					<text class="entry-row-count">{{ records.length }}</text>
@@ -194,7 +191,6 @@
 				</view>
 				<view class="entry-row-mid">
 					<text class="entry-row-title">查看积分排行</text>
-					<text class="entry-row-sub">当前排名 No.{{ my.rank }} · 本月酒德榜</text>
 				</view>
 				<view class="entry-row-tail">
 					<text class="entry-row-arrow">›</text>
@@ -290,10 +286,10 @@
 				<text class="po-sub">{{ pointsDialog.mode == 'deposit' ? '从赛事奖励 / 签到累积的积分存入门店' : '将积分兑换为套餐券 / 礼物' }}</text>
 			</view>
 
-			<!-- 当前可用积分信息条：让用户先看到余额，再决定输多少 -->
+			<!-- 当前可用积分信息条：让用户先看到余额，再决定输多少（取 monthPoints） -->
 			<view class="po-info">
 				<text class="po-info-label">当前可用积分</text>
-				<text class="po-info-value">{{ formatNum(my.availablePoints) }}</text>
+				<text class="po-info-value">{{ formatNum(info.monthPoints) }}</text>
 			</view>
 
 			<!-- 数字输入框：type=number 拉起数字键盘；onPoInput 过滤非法字符与长度 -->
@@ -301,7 +297,7 @@
 				<input
 					class="po-input"
 					type="number"
-					:value="pointsDialog.amount"
+					:value="pointsDialog.points"
 					@input="onPoInput"
 					placeholder="请输入积分数量"
 					placeholder-class="po-input-ph"
@@ -335,18 +331,32 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { JIUDE_MAX_THRESHOLD } from '@/common/jiude-data'
 import {
-	JIUDE_MAX_THRESHOLD,
-	MY_JIUDE, JIUDE_VOUCHERS, JIUDE_RECORDS
-} from '@/common/jiude-data'
-import type { JiudeVoucher, MyJiude } from '@/common/types'
-import { fetchMyJiude, fetchLevelBenefit, depositPoints } from '@/common/jiude-api'
-import type { LevelBenefitVO } from '@/common/jiude-api'
+	fetchMyJiude, fetchLevelBenefit, rechargePoints, withdrawPoints, fetchJiudeRecords,
+	JIUDE_TIER_COLORS, jiudeTierColor
+} from '@/common/jiude-api'
+import type { UserJiuDeVO, LevelBenefitVO, PointsRecordVO } from '@/common/jiude-api'
 import { fetchJiudeStores } from '@/common/store-api'
 import type { JiudeStoreVO } from '@/common/store-api'
 
-/* ---------------- 数据 ---------------- */
-// 当前门店：id + name 来自 /jiu-de/info，地址从门店列表按 id 匹配（列表异步加载，用 computed 自动补齐）
+/* ---------------- 数据（直接消费后端 VO，不做映射） ---------------- */
+// 我的酒德：GET /jiu-de/info → UserJiuDeVO
+const EMPTY_VO : UserJiuDeVO = {
+	userId: 0, username: '', avatar: '',
+	storeId: 0, storeName: '',
+	points: 0, monthPoints: 0, weekPoints: 0, ranking: 0,
+	amount: 0, totalAmount: 0,
+	comboA: 0, comboAUsed: 0, comboB: 0, comboBUsed: 0, comboC: 0, comboCUsed: 0,
+	levelLabel: '', needScore: 0
+}
+const info = ref<UserJiuDeVO>({ ...EMPTY_VO })
+// 等级权益：GET /jiu-de/level-benefit
+const benefitList = ref<LevelBenefitVO[]>([])
+// 存取记录：GET /jiu-de/record-list（入口条数直接取数组长度）
+const records = ref<PointsRecordVO[]>([])
+
+// 当前门店：切换门店时本地即时更新；地址由 storeAddress 从门店列表匹配
 const store = ref<{ id : number, name : string }>({ id: 0, name: '' })
 // 当前门店地址：从门店列表按 storeId 匹配
 const storeAddress = computed<string>((): string => {
@@ -355,142 +365,51 @@ const storeAddress = computed<string>((): string => {
 	}
 	return ''
 })
-const my = ref<MyJiude>({ tierKey: 'tier1', tierLevel: 1, growthValue: 0, nextThreshold: 0, availablePoints: 0, totalPoints: 0, monthPoints: 0, rank: 0 })
 // 进度条入场动画开关：初始 false（渲染 0%），页面挂载后置 true，触发从 0 到目标值的过渡
 const progressAnimated = ref<boolean>(false)
-// 当前等级标签，直接使用接口返回的 levelLabel（如 A / AA / AAA 等）
-const levelLabel = ref<string>('')
-// 等级权益数据：GET /jiu-de/level-benefit（每个等级一条 LevelBenefitVO）
-const benefitList = ref<LevelBenefitVO[]>([])
-// 当前等级对应的权益条目：按 levelLabel 匹配，未匹配到时回落到第一条
-const EMPTY_BENEFIT : LevelBenefitVO = { levelLabel: '', points: 0, score: 0, needScore: 0, monthCard: 0, monthACombo: 0, monthBCombo: 0, monthCCombo: 0 }
-const currentBenefit = computed<LevelBenefitVO>((): LevelBenefitVO => {
-	const list : LevelBenefitVO[] = benefitList.value
-	for (let i : number = 0; i < list.length; i++) {
-		if (list[i].levelLabel == levelLabel.value) { return list[i] }
-	}
-	return list.length > 0 ? list[0] : EMPTY_BENEFIT
-})
-const vouchers = ref<JiudeVoucher[]>([
-	{ code: 'A', name: '套餐', count: 0, color: '#2AA97A' },
-	{ code: 'B', name: '套餐', count: 0, color: '#E8C275' },
-	{ code: 'C', name: '套餐', count: 0, color: '#B07AE8' }
-])
-const records = JIUDE_RECORDS
 
-// 全部门店列表：GET /store/list?type=jiude（仅 id / name / address），不使用 mock 数据
+// 套餐券：静态 meta（code/name/color）+ 数量直接取 info 的 comboX - comboXUsed
+const vouchers = computed(() => [
+	{ code: 'A', name: '套餐', color: '#2AA97A', count: info.value.comboA },
+	{ code: 'B', name: '套餐', color: '#E8C275', count: info.value.comboB },
+	{ code: 'C', name: '套餐', color: '#B07AE8', count: info.value.comboC }
+])
+
+// 全部门店列表：GET /store/list?type=jiude（仅 id / name / address）
 const allStores = ref<JiudeStoreVO[]>([])
 
 // 加载酒德门店列表
 const loadStoreList = () : void => {
 	fetchJiudeStores().then((list : JiudeStoreVO[]) => {
 		allStores.value = list || []
-		console.log('[酒德] 门店列表加载完成:', allStores.value)
 	}).catch((err : any) => {
 		console.error('[酒德] 门店列表加载失败:', err)
 		allStores.value = []
 	})
 }
 
-/* ---------------- 接口数据映射 ---------------- */
-// 从 levelLabel 解析等级：X=1级（最低），A=2级，AA=3级 … AAAAAA=7级（最高）
-const parseTierLevel = (label : string) : number => {
-	const s : string = (label || '').trim().toUpperCase()
-	if (!s) { return 1 }
-	if (s == 'X') { return 1 }
-	let count : number = 0
-	for (let i : number = 0; i < s.length; i++) {
-		if (s.charAt(i) == 'A') { count++ }
-	}
-	const lv : number = count + 1
-	return lv > 7 ? 7 : lv
-}
-
-const parseTierKey = (label : string) : string => {
-	return 'tier' + parseTierLevel(label)
-}
-
-// 加载我的酒德数据：GET /jiu-de/info + GET /jiu-de/level-benefit
+/* ---------------- 数据加载 ---------------- */
+// 加载我的酒德：GET /jiu-de/info → GET /jiu-de/level-benefit；记录单独拉取
 const loadMyJiude = () : void => {
-	console.log('[酒德] 开始加载数据...')
-
-	// 先加载基础信息
-	fetchMyJiude().then((info : any) => {
-		console.log('[酒德] info 完整响应:', info)
-
-		// 检查响应结构
-		if (!info) {
-			console.error('[酒德] info 响应为空')
-			return
-		}
-
-		// 门店：接口只返回 storeId / storeName，地址由 storeAddress 按门店列表匹配补齐
-		if (info.storeId && info.storeName) {
-			store.value = { id: info.storeId, name: info.storeName }
-		}
-
-		// 我的酒德状态
-		const label : string = info.levelLabel || ''
-		levelLabel.value = label
-		const tk : string = parseTierKey(label)
-		const tl : number = parseTierLevel(label)
-
-		my.value = {
-			tierKey: tk,
-			tierLevel: tl,
-			growthValue: info.points || 0,
-			nextThreshold: info.needScore || 0,
-			availablePoints: info.amount || 0,
-			totalPoints: info.totalAmount || 0,
-			monthPoints: info.monthPoints || 0,
-			rank: info.ranking || 0
-		}
-
-		// 套餐券
-		vouchers.value = [
-			{ ...vouchers.value[0], count: info.comboA != null ? info.comboA - (info.comboAUsed || 0) : 0 },
-			{ ...vouchers.value[1], count: info.comboB != null ? info.comboB - (info.comboBUsed || 0) : 0 },
-			{ ...vouchers.value[2], count: info.comboC != null ? info.comboC - (info.comboCUsed || 0) : 0 }
-		]
-
-		console.log('[酒德] 数据加载完成:', { my: my.value, store: store.value, vouchers: vouchers.value })
-
-		// 加载等级权益
+	fetchMyJiude().then((vo : UserJiuDeVO) => {
+		info.value = vo
+		store.value = { id: vo.storeId, name: vo.storeName }
 		return fetchLevelBenefit()
 	}).then((list : LevelBenefitVO[]) => {
 		benefitList.value = list || []
-		console.log('[酒德] benefit 完整响应:', benefitList.value)
-
-		// 按 levelLabel 匹配当前等级条目，同步升级进度
-		const label : string = levelLabel.value
-		let cur : LevelBenefitVO | null = null
-		for (let i : number = 0; i < benefitList.value.length; i++) {
-			if (benefitList.value[i].levelLabel == label) { cur = benefitList.value[i]; break }
-		}
-		if (cur) {
-			my.value = {
-				...my.value,
-				tierKey: parseTierKey(cur.levelLabel),
-				tierLevel: parseTierLevel(cur.levelLabel),
-				nextThreshold: cur.needScore || my.value.nextThreshold
-			}
-		}
-
-		console.log('[酒德] 等级权益加载完成:', { list: benefitList.value, my: my.value })
 	}).catch((err : any) => {
 		console.error('[酒德] 数据加载失败:', err)
-		console.error('[酒德] 错误堆栈:', err.stack)
-
-		// API 请求失败时，使用 mock 数据作为降级方案（门店列表不走 mock，保持为空）
-		console.log('[酒德] 使用 mock 数据作为降级方案')
-		my.value = MY_JIUDE
-		vouchers.value = JIUDE_VOUCHERS
+		uni.showToast({ title: err && err.message ? err.message : '加载失败，请重试', icon: 'none' })
+	})
+	fetchJiudeRecords(1, 20).then((list : PointsRecordVO[]) => {
+		records.value = list || []
+	}).catch((err : any) => {
+		console.error('[酒德] 记录加载失败:', err)
 	})
 }
 
 // 每次进入页面都重新加载数据（onShow：首次进入 + 从其他页面返回时都会触发）
 onShow(() => {
-	console.log('[酒德] 页面显示，重新加载数据...')
 	// 重置进度条动画：先回到 0% 渲染上屏，再切到目标百分比触发过渡
 	progressAnimated.value = false
 	loadMyJiude()
@@ -502,12 +421,7 @@ onShow(() => {
 const showStoreSheet = ref<boolean>(false)
 
 /* ---------------- 当前等级主色 ---------------- */
-// 各等级主色（共 7 级）：X 最低（灰）→ A → AA → AAA → AAAA → AAAAA → AAAAAA 最高，按 tierLevel 取色
-const TIER_COLORS : string[] = ['#8F9492', '#7AB6F2', '#7AC79A', '#FF6255', '#C7CDCB', '#E8C275', '#FFE9B8']
-const tierColor = computed<string>((): string => {
-	const idx : number = my.value.tierLevel - 1
-	return TIER_COLORS[idx >= 0 && idx < TIER_COLORS.length ? idx : 0]
-})
+const tierColor = computed<string>((): string => jiudeTierColor(info.value.levelLabel))
 
 // 与 mine / rank 页同款"段位主色环"：渐变背景 + 边框
 const emblemStyle = computed<string>((): string => {
@@ -523,7 +437,7 @@ const emblemColorStyle = computed<string>((): string => 'color:' + tierColor.val
 
 // 权益列表按返回顺序（等级由低到高）取色，保证每张卡颜色不同、不依赖 levelLabel 的具体格式
 const tierColorAt = (idx : number) : string => {
-	return TIER_COLORS[idx >= 0 && idx < TIER_COLORS.length ? idx : 0]
+	return JIUDE_TIER_COLORS[idx >= 0 && idx < JIUDE_TIER_COLORS.length ? idx : 0]
 }
 
 // 文字颜色样式：在 script 内拼好完整样式串，模板直接绑定，避免引号转义问题
@@ -540,17 +454,17 @@ const benefitPillStyle = (idx : number, isCurrent : boolean) : string => {
 }
 
 /* ---------------- 进度条 ---------------- */
-// 进度目标：当下一档有门槛时取 nextThreshold；已满级时用 maxThreshold 锁住上限
+// 进度目标：未满级用 info.needScore；满级（needScore=0）用 JIUDE_MAX_THRESHOLD 锁住上限
 const progressTarget = computed<number>((): number => {
-	if (my.value.nextThreshold > 0) { return my.value.nextThreshold }
+	if (info.value.needScore > 0) { return info.value.needScore + info.value.totalAmount - 1 }
 	return JIUDE_MAX_THRESHOLD
 })
 
 const progressPct = computed<number>((): number => {
 	const target : number = progressTarget.value
 	if (target <= 0) { return 100 }
-	const pct : number = Math.round(my.value.growthValue * 100 / target)
-	return pct > 100 ? 100 : pct
+	const pct : number = Math.round(info.value.totalAmount * 100 / target)
+	return pct
 })
 
 // 进度条样式：入场动画触发前渲染 0%，触发后切到目标百分比，由 CSS transition 完成增长动效
@@ -561,8 +475,8 @@ const progressStyle = computed<string>((): string => {
 
 // 进度提示文案：满级时切到「已抵达顶级」，未满级时给出剩余成长值
 const progressTip = computed<string>((): string => {
-	if (my.value.nextThreshold <= 0) { return '已抵达顶级 · 享受传奇终身荣誉席' }
-	const gap : number = my.value.nextThreshold - my.value.growthValue
+	if (info.value.needScore <= 0) { return '已抵达顶级 · 享受传奇终身荣誉席' }
+	const gap : number = info.value.needScore
 	if (gap <= 0) { return '已满足下一级门槛 · 等待赛季结算' }
 	return '距下一级还差 ' + formatNum(gap) + ' 成长值'
 })
@@ -573,15 +487,18 @@ const progressTip = computed<string>((): string => {
 type StatCell = { value : string, label : string, color : string }
 const tierStatCells = computed<StatCell[]>((): StatCell[] => {
 	return [
-		{ value: formatNum(my.value.growthValue),  label: '当前成长值', color: '#EDEFEE' },
-		{ value: formatNum(my.value.availablePoints), label: '可用积分', color: '#2AA97A' },
-		{ value: formatNum(my.value.totalPoints),  label: '累计积分', color: '#E8C275' }
+		{ value: formatNum(info.value.amount),  label: '当前余额', color: '#EDEFEE' },
+		{ value: formatNum(info.value.monthPoints), label: '当前积分', color: '#2AA97A' },
+		{ value: formatNum(info.value.totalAmount),  label: '成长值', color: '#E8C275' }
 	]
 })
 
 /* ---------------- 工具 ---------------- */
 const formatNum = (n : number) : string => {
-	const s : string = n.toString()
+	const v : number = Number(n)
+	if (!isFinite(v) || v == 0) { return '0' }
+	const neg : boolean = v < 0
+	const s : string = Math.abs(v).toString()
 	let res : string = ''
 	let c : number = 0
 	for (let i : number = s.length - 1; i >= 0; i--) {
@@ -589,7 +506,7 @@ const formatNum = (n : number) : string => {
 		c++
 		if (c % 3 == 0 && i > 0) { res = ',' + res }
 	}
-	return res
+	return neg ? '-' + res : res
 }
 
 /* ---------------- 交互 ---------------- */
@@ -658,14 +575,14 @@ const onPickStore = (s : JiudeStoreVO) : void => {
 type PointsDialog = {
 	visible : boolean
 	mode : 'deposit' | 'withdraw'
-	amount : string  // 字符串保存以便判空 + 字符过滤
+	points : string  // 字符串保存以便判空 + 字符过滤
 	error : string  // 空串 = 不展示
 }
 
 const pointsDialog = ref<PointsDialog>({
 	visible: false,
 	mode: 'deposit',
-	amount: '',
+	points: '',
 	error: ''
 })
 
@@ -674,7 +591,7 @@ const openPointsDialog = (mode : 'deposit' | 'withdraw') : void => {
 	pointsDialog.value = {
 		visible: true,
 		mode: mode,
-		amount: '',
+		points: '',
 		error: ''
 	}
 }
@@ -684,16 +601,16 @@ const onPoInput = (e : any) : void => {
 	let v : string = (e.detail.value || '').toString()
 	v = v.replace(/\D/g, '').replace(/^0+(\d)/, '$1')
 	if (v.length > 12) { v = v.substring(0, 12) }
-	pointsDialog.value.amount = v
+	pointsDialog.value.points = v
 	// 用户在改 → 清掉旧错误，让红色字不要一直挂着
 	if (pointsDialog.value.error) { pointsDialog.value.error = '' }
 }
 
-// 是否允许提交：金额 > 0；取积分时不能超过可用积分
+// 是否允许提交：金额 > 0；取积分时不能超过可用积分（monthPoints）
 const canConfirm = computed<boolean>((): boolean => {
-	const n : number = parseInt(pointsDialog.value.amount, 10)
+	const n : number = parseInt(pointsDialog.value.points, 10)
 	if (!isFinite(n) || n <= 0) { return false }
-	if (pointsDialog.value.mode == 'withdraw' && n > my.value.availablePoints) { return false }
+	if (pointsDialog.value.mode == 'withdraw' && n > info.value.monthPoints) { return false }
 	return true
 })
 
@@ -706,43 +623,27 @@ const onTapPoMask = () : void => {
 }
 
 const onTapPoConfirm = () : void => {
-	const n : number = parseInt(pointsDialog.value.amount, 10)
+	const n : number = parseInt(pointsDialog.value.points, 10)
 	if (!isFinite(n) || n <= 0) {
 		pointsDialog.value.error = '请输入大于 0 的整数'
 		return
 	}
-	if (pointsDialog.value.mode == 'withdraw' && n > my.value.availablePoints) {
-		pointsDialog.value.error = '超过可用积分（' + formatNum(my.value.availablePoints) + '）'
+	if (pointsDialog.value.mode == 'withdraw' && n > info.value.monthPoints) {
+		pointsDialog.value.error = '超过可用积分（' + formatNum(info.value.monthPoints) + '）'
 		return
 	}
 
-	// 存积分调用接口
-	if (pointsDialog.value.mode == 'deposit') {
-		console.log('[酒德] 存积分，数量:', n)
-		depositPoints(n).then((result : any) => {
-			console.log('[酒德] 存积分成功，返回数据:', result)
-			pointsDialog.value.visible = false
-			uni.showToast({ title: '已存入 ' + formatNum(n) + ' 积分', icon: 'none' })
-			// 使用返回数据更新本地状态
-			if (result) {
-				my.value = {
-					...my.value,
-					growthValue: result.points || my.value.growthValue,
-					availablePoints: result.amount || my.value.availablePoints,
-					totalPoints: result.totalAmount || my.value.totalPoints,
-					monthPoints: result.monthPoints || my.value.monthPoints
-				}
-			}
-		}).catch((err : any) => {
-			console.error('[酒德] 存积分失败:', err)
-			pointsDialog.value.error = '存积分失败：' + (err.message || '未知错误')
-		})
-		return
-	}
-
-	// 取积分暂未实现
-	pointsDialog.value.visible = false
-	uni.showToast({ title: '已取入 ' + formatNum(n) + ' 积分', icon: 'none' })
+	// 存/取积分都走接口（storeId 取当前选中门店，未选传 0），成功后重新拉取（不做本地同步）
+	const isDeposit : boolean = pointsDialog.value.mode == 'deposit'
+	const req : Promise<void> = isDeposit ? rechargePoints(store.value.id, n) : withdrawPoints(store.value.id, n)
+	req.then((): void => {
+		pointsDialog.value.visible = false
+		uni.showToast({ title: (isDeposit ? '已申请存入 ' : '已申请取出 ') + formatNum(n) + ' 积分', icon: 'none' })
+		loadMyJiude()
+	}).catch((err : any) => {
+		console.error(isDeposit ? '[酒德] 存积分失败:' : '[酒德] 取积分失败:', err)
+		pointsDialog.value.error = (isDeposit ? '存积分失败：' : '取积分失败：') + (err.message || '未知错误')
+	})
 }
 
 const onTapDeposit = () : void => {
@@ -753,7 +654,7 @@ const onTapWithdraw = () : void => {
 	openPointsDialog('withdraw')
 }
 
-const onTapVoucher = (v : JiudeVoucher) : void => {
+const onTapVoucher = (v : { code : string, name : string, count : number }) : void => {
 	if (v.count <= 0) {
 		uni.showToast({ title: v.code + ' 券暂无可用', icon: 'none' })
 		return

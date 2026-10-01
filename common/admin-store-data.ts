@@ -32,7 +32,7 @@ export const ADMIN_USERS : AdminUser[] = buildAdminUsers()
 /* ---------------- 店铺管理（后台） ---------------- */
 // 管理后台「店铺管理」页的数据模型，与后端 StoreVO 对齐
 export type AdminStore = {
-	id ?: number | string
+	id : number | string         // 后端必返，编辑/删除/人员管理都依赖它
 	name : string
 	city : string
 	address : string

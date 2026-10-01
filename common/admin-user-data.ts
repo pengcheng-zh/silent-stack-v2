@@ -1,5 +1,3 @@
-import { JIUDE_RANK_TOTAL } from './jiude-rank-data'
-
 /* ---------------- 段位花色（复用 jiude-data 的 6 级） ---------------- */
 // 与 rank-data / jiude-data 保持同一组 key；tierLevel 1=I 最高 / 6=V 最低
 export type TierKey = 'legend' | 'crown' | 'spade' | 'heart' | 'club' | 'diamond'
@@ -14,30 +12,6 @@ export const TIER_META : Record<TierKey, { name : string, suit : string, color :
 }
 
 /* ---------------- 用户行（后台视角的完整数据） ---------------- */
-// AdminUserRow = 后台可搜索/可调账/可查看的"用户全量资料"
-// 包含 10 个可调账资产（balance/ticket/monthly/direct/points/jiudeBalance/A/B/C/growth）
-// + 段位（与 rank-data 同步）+ 手机号
-export type AdminUserRow = {
-	id : string
-	name : string
-	city : string
-	tier : TierKey
-	tierLevel : number         // 1=I 最高 / 6=V 最低
-	tierPoints : number        // 段位分（与 RankPlayer.points 同口径）
-	masterScore : number       // 大师积分（>= spade 才有有效分）
-	monthlyTicket : number     // 月票
-	directTicket : number      // 直通函
-	phone : string             // 已脱敏展示（详见下方 maskPhone）
-	balance : number           // 现金余额（元）
-	ticketCount : number       // 比赛门票（张）
-	points : number            // 积分
-	jiudeBalance : number      // 酒德余额（酒德币）
-	jiudeA : number            // 套餐券 A 剩余
-	jiudeB : number            // 套餐券 B 剩余
-	jiudeC : number            // 套餐券 C 剩余
-	jiudeGrowth : number       // 酒德成长值
-}
-
 /* ---------------- 资产字段（用于调账弹层 + 账单展示） ---------------- */
 // 10 个可调账资产；key 对应 AdminUserRow 的字段名，
 // label / color / unit 决定弹层选项的展示与账单列表的视觉
@@ -94,58 +68,6 @@ export const maskPhone = (raw : string) : string => {
 /* ---------------- 种子用户池 ---------------- */
 // 取 JIUDE_RANK_TOTAL 全部 40 位玩家，按 rank 顺序填 ID；
 // 钱包/门票/月票/直通函/积分/酒德余额/A/B/C/成长值 = rank 序号为种子的"看起来合理"的演示值
-// 手机号：演示数据，3 段拼接（130~199 区段）
-const phonePrefix = ['138', '139', '186', '188', '156', '177', '199', '131', '152', '186']
-const buildUsers = () : AdminUserRow[] => {
-	const list : AdminUserRow[] = []
-	const src = JIUDE_RANK_TOTAL
-	const len : number = src.length
-	for (let i : number = 0; i < len; i++) {
-		const p = src[i]
-		// 演示值：以 rank 为基准给一个"看上去像真实玩家"的金额区间
-		const cash : number = Math.round((120 + (i % 7) * 78 + (i % 3) * 33) * 100) / 100
-		const ticket : number = 1 + (i % 4)                          // 1~4
-		const monthly : number = (i % 6 == 0) ? 1 : 0                 // 大多数没月票
-		const direct : number = (i % 5 == 0) ? 1 : 0                  // ~20% 有直通函
-		const pts : number = 80 + (i * 17) % 3200                      // 80 ~ 3200
-		const jb : number = 200 + (i * 113) % 5600                    // 酒德余额
-		const a : number = (i % 3 == 0) ? 1 : 0                       // 套餐券 A
-		const b : number = (i % 4 == 0) ? 1 : 0                       // 套餐券 B
-		const c : number = (i % 7 == 0) ? 1 : 0                       // 套餐券 C
-		const g : number = 200 + (i * 211) % 18000                    // 酒德成长值
-		const pre : string = phonePrefix[i % phonePrefix.length]
-		// 手机号后 8 位用 i 派生，前面补零到 8 位
-		const n : number = (10000000 + i * 13579) % 100000000
-		const s : string = n.toString()
-		const pad : string = s.length == 8 ? s : (s + '00000000').slice(0, 8)
-		list.push({
-			id: 'u' + (i + 1).toString().padStart(5, '0'),
-			name: p.name,
-			city: p.city,
-			// JiudeRankPlayer 用的是 tierKey / tierLevel / totalPoints / monthPoints；
-			// 没有 masterScore 字段，演示中按 tierLevel<=3 给非零值，否则 0
-			tier: p.tierKey as TierKey,
-			tierLevel: p.tierLevel,
-			tierPoints: p.totalPoints,
-			masterScore: p.tierLevel <= 3 ? Math.floor(p.monthPoints * 1.5) : 0,
-			monthlyTicket: monthly,
-			directTicket: direct,
-			phone: pre + pad,
-			balance: cash,
-			ticketCount: ticket,
-			points: pts,
-			jiudeBalance: jb,
-			jiudeA: a,
-			jiudeB: b,
-			jiudeC: c,
-			jiudeGrowth: g
-		})
-	}
-	return list
-}
-
-export const ADMIN_USERS_DETAIL : AdminUserRow[] = buildUsers()
-
 /* ---------------- 用户的荣誉列表（弹层用） ---------------- */
 // 给每人生成 3~6 项荣誉：日期从今天回溯；level 三档（金/银/铜）按 rank 派生
 export type UserHonorItem = {
@@ -259,18 +181,6 @@ const buildBills = (userId : string, seed : number) : UserBillItem[] => {
 		})
 	}
 	return list
-}
-
-// 索引：userId → 荣誉 + 账单（按需懒加载；这里一次性生成）
-export const getUserHonors = (userId : string) : UserHonorItem[] => {
-	const idx : number = ADMIN_USERS_DETAIL.findIndex((u : AdminUserRow) : boolean => u.id == userId)
-	if (idx < 0) { return [] }
-	return buildHonors(userId, idx * 3 + 7)
-}
-export const getUserBills = (userId : string) : UserBillItem[] => {
-	const idx : number = ADMIN_USERS_DETAIL.findIndex((u : AdminUserRow) : boolean => u.id == userId)
-	if (idx < 0) { return [] }
-	return buildBills(userId, idx * 5 + 11)
 }
 
 /* ---------------- 账单类型中文 ---------------- */

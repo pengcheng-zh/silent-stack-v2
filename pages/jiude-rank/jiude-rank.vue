@@ -1,8 +1,13 @@
 <template>
-	<scroll-view class="page" direction="vertical" :show-scrollbar="false">
+	<scroll-view
+		class="page"
+		direction="vertical"
+		:show-scrollbar="false"
+		@scrolltolower="onLoadMore"
+	>
 
 		<!-- ============ 顶部三 Tab ============ -->
-		<!-- 月度榜 / 新人榜 / 总榜：金色下标线 + 副标题描述排序口径 -->
+		<!-- 月度榜(type=0) / 新人榜(type=1) / 总榜(type=2) -->
 		<view class="tabs">
 			<view
 				v-for="t in tabs"
@@ -17,33 +22,15 @@
 			</view>
 		</view>
 
-		<!-- ============ "我"的状态卡 ============ -->
-		<!-- 三 Tab 共享：右侧排名随当前 Tab 变化（newbie 时显示"未上榜"） -->
-		<view class="me-card">
-			<view class="me-left">
-				<view class="me-avatar">
-					<text class="me-avatar-text">{{ me.name.substring(0, 1) }}</text>
-				</view>
-				<view class="me-info">
-					<text class="me-name">{{ me.name }}</text>
-					<text class="me-tier" :style="meTierStyle">{{ meTierText }}</text>
-					<text class="me-stats">本月 {{ formatNum(me.monthPoints) }}  ·  累计 {{ formatNum(me.totalPoints) }}</text>
-				</view>
-			</view>
-			<view class="me-right">
-				<text class="me-rank-num">{{ meRankText }}</text>
-				<text class="me-rank-label">{{ activeTabLabel }}排名</text>
-			</view>
-		</view>
-
 		<!-- ============ 前三名领奖台 ============ -->
-		<!-- 月度 / 总 / 新人 各展示前三；2-1-3 布局、底座高度差撑出仪式感 -->
-		<view v-if="top3.length === 3" class="podium">
+		<!-- 2-1-3 布局、底座高度差撑出仪式感 -->
+		<view v-if="!firstLoading && top3.length === 3" class="podium">
 			<view class="podium-col">
 				<view class="podium-avatar podium-avatar-silver">
-					<text class="podium-avatar-text">{{ top3[1].name.substring(0, 1) }}</text>
+					<image v-if="avatarOf(top3[1]).length > 0" class="podium-avatar-img" :src="avatarOf(top3[1])" mode="aspectFill"></image>
+					<text v-else class="podium-avatar-text">{{ nameOf(top3[1]).substring(0, 1) }}</text>
 				</view>
-				<text class="podium-name">{{ top3[1].name }}</text>
+				<text class="podium-name">{{ nameOf(top3[1]) }}</text>
 				<text class="podium-points">{{ formatNum(valueOf(top3[1])) }}</text>
 				<view class="podium-base podium-base-silver">
 					<text class="podium-base-text">2</text>
@@ -51,9 +38,10 @@
 			</view>
 			<view class="podium-col">
 				<view class="podium-avatar podium-avatar-gold">
-					<text class="podium-avatar-text">{{ top3[0].name.substring(0, 1) }}</text>
+					<image v-if="avatarOf(top3[0]).length > 0" class="podium-avatar-img" :src="avatarOf(top3[0])" mode="aspectFill"></image>
+					<text v-else class="podium-avatar-text">{{ nameOf(top3[0]).substring(0, 1) }}</text>
 				</view>
-				<text class="podium-name podium-name-1">{{ top3[0].name }}</text>
+				<text class="podium-name podium-name-1">{{ nameOf(top3[0]) }}</text>
 				<text class="podium-points">{{ formatNum(valueOf(top3[0])) }}</text>
 				<view class="podium-base podium-base-gold">
 					<text class="podium-base-text">1</text>
@@ -61,9 +49,10 @@
 			</view>
 			<view class="podium-col">
 				<view class="podium-avatar podium-avatar-bronze">
-					<text class="podium-avatar-text">{{ top3[2].name.substring(0, 1) }}</text>
+					<image v-if="avatarOf(top3[2]).length > 0" class="podium-avatar-img" :src="avatarOf(top3[2])" mode="aspectFill"></image>
+					<text v-else class="podium-avatar-text">{{ nameOf(top3[2]).substring(0, 1) }}</text>
 				</view>
-				<text class="podium-name">{{ top3[2].name }}</text>
+				<text class="podium-name">{{ nameOf(top3[2]) }}</text>
 				<text class="podium-points">{{ formatNum(valueOf(top3[2])) }}</text>
 				<view class="podium-base podium-base-bronze">
 					<text class="podium-base-text">3</text>
@@ -71,55 +60,59 @@
 			</view>
 		</view>
 
+		<!-- ============ 首屏加载中 ============ -->
+		<view v-if="firstLoading" class="state-box">
+			<text class="state-text">加载中…</text>
+		</view>
+
 		<!-- ============ 完整榜单 ============ -->
-		<!-- 包含前三（领奖台已展示头像 / 名字），这里复用同一条目便于阅读 -->
-		<view class="list">
+		<view v-else-if="currentList.length > 0" class="list">
 			<view class="list-head">
 				<text class="list-title">完整榜单</text>
-				<text class="list-count">共 {{ currentList.length }} 人</text>
+				<text class="list-count">已加载 {{ currentList.length }} 人</text>
 			</view>
 			<view
 				v-for="(p, idx) in currentList"
-				:key="activeTab + '-' + p.id"
+				:key="activeTab + '-' + p.userId"
 				class="row"
-				:class="{ 'row-me': p.isMe }"
-				@tap="onRowTap(p)"
 			>
 				<view
 					class="row-rank"
 					:class="{
-						'row-rank-gold': idx === 0,
-						'row-rank-silver': idx === 1,
-						'row-rank-bronze': idx === 2,
-						'row-rank-me': p.isMe
+						'row-rank-gold': rankOf(idx) === 1,
+						'row-rank-silver': rankOf(idx) === 2,
+						'row-rank-bronze': rankOf(idx) === 3
 					}"
 				>
 					<text
 						class="row-rank-text"
-						:class="{ 'row-rank-text-medal': idx < 3, 'row-rank-text-me': p.isMe }"
-					>{{ idx + 1 }}</text>
+						:class="{ 'row-rank-text-medal': rankOf(idx) <= 3 }"
+					>{{ rankOf(idx) }}</text>
 				</view>
 				<view class="row-avatar">
-					<text class="row-avatar-text">{{ p.name.substring(0, 1) }}</text>
+					<image v-if="avatarOf(p).length > 0" class="row-avatar-img" :src="avatarOf(p)" mode="aspectFill"></image>
+					<text v-else class="row-avatar-text">{{ nameOf(p).substring(0, 1) }}</text>
 				</view>
 				<view class="row-main">
 					<view class="row-name-line">
-						<text class="row-name">{{ p.name }}</text>
-						<view v-if="p.isMe" class="me-tag">
-							<text class="me-tag-text">我</text>
-						</view>
-					</view>
-					<view class="row-sub-line">
-						<text class="row-city">{{ p.city }}</text>
-						<text class="row-tier" :style="tierStyle(p.tierKey)">{{ tierLabel(p) }}</text>
-						<text v-if="activeTab === 'newbie'" class="row-join">加入 {{ p.joinDate }}</text>
+						<text class="row-name">{{ nameOf(p) }}</text>
+						<text v-if="p.levelLabel.length > 0" class="row-tier" :style="jiudeTierColorStyle(p.levelLabel)">{{ p.levelLabel }}</text>
 					</view>
 				</view>
 				<view class="row-value">
-					<text class="row-value-num" :class="{ 'row-value-me': p.isMe }">{{ formatNum(valueOf(p)) }}</text>
+					<text class="row-value-num">{{ formatNum(valueOf(p)) }}</text>
 					<text class="row-value-unit">{{ tabUnit }}</text>
 				</view>
 			</view>
+
+			<view class="more">
+				<text class="more-text">{{ moreText }}</text>
+			</view>
+		</view>
+
+		<!-- 空态 -->
+		<view v-else class="state-box">
+			<text class="state-text">暂无上榜玩家</text>
 		</view>
 
 		<!-- ============ 脚注：当前榜单的口径说明 ============ -->
@@ -131,121 +124,131 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import {
-	JIUDE_RANK_MONTHLY,
-	JIUDE_RANK_NEWBIE,
-	JIUDE_RANK_TOTAL,
-	ME_PLAYER,
-	formatNum
-} from '@/common/jiude-rank-data'
-import type { JiudeRankPlayer } from '@/common/types'
+import { fetchJiudeRank, jiudeTierColorStyle } from '@/common/jiude-api'
+import type { UserJiuDeVO } from '@/common/jiude-api'
 
 /* ---------------- 三 Tab 元数据 ---------------- */
-// 三个榜单对应的 key；切换 tab 时 currentList / valueOf / footnote / tabUnit 都跟着变
+// 月度榜 type=0 / 新人榜 type=1 / 总榜 type=2
 type TabKey = 'monthly' | 'newbie' | 'total'
-const tabs : { key : TabKey, label : string, sub : string }[] = [
-	{ key: 'monthly', label: '月度榜', sub: '本月新增' },
-	{ key: 'newbie',  label: '新人榜', sub: '注册 30 天内' },
-	{ key: 'total',   label: '总榜',   sub: '累计酒德币' }
+type TabCell = { key : TabKey, label : string, sub : string, type : number }
+const tabs : TabCell[] = [
+	{ key: 'monthly', label: '月度榜', sub: '本月新增',     type: 0 },
+	{ key: 'newbie',  label: '新人榜', sub: '注册7天内', 	type: 1 },
+	{ key: 'total',   label: '总榜',   sub: '累计酒德币',   type: 2 }
 ]
 
 const activeTab = ref<TabKey>('monthly')
-const switchTab = (k : TabKey) : void => { activeTab.value = k }
+const switchTab = (k : TabKey) : void => {
+	if (activeTab.value == k) { return }
+	activeTab.value = k
+	load(true)
+}
 
-/* ---------------- 当前榜单 / 排序口径 ---------------- */
-// 月度榜 / 新人榜 排序键 = monthPoints；总榜 = totalPoints
-const valueOf = (p : JiudeRankPlayer) : number => {
-	if (activeTab.value == 'total') { return p.totalPoints }
+/* ---------------- 榜单数据（直接消费 UserJiuDeVO，不做映射） ---------------- */
+const PAGE_LIMIT : number = 20
+const currentList = ref<UserJiuDeVO[]>([])
+const page = ref<number>(1)
+const hasMore = ref<boolean>(true)
+const firstLoading = ref<boolean>(true)
+const loadingMore = ref<boolean>(false)
+
+const typeOfTab = (k : TabKey) : number => {
+	if (k == 'monthly') { return 0 }
+	if (k == 'newbie') { return 1 }
+	return 2
+}
+
+const load = (reset : boolean) : void => {
+	if (reset) {
+		page.value = 1
+		hasMore.value = true
+		firstLoading.value = true
+	} else {
+		if (loadingMore.value || !hasMore.value) { return }
+		loadingMore.value = true
+	}
+	const target : number = reset ? 1 : page.value + 1
+	fetchJiudeRank(typeOfTab(activeTab.value), target, PAGE_LIMIT).then((list : UserJiuDeVO[]) => {
+		currentList.value = reset ? list : currentList.value.concat(list)
+		page.value = target
+		// 以本页实际返回条数判断是否还有下一页
+		hasMore.value = list.length >= PAGE_LIMIT
+		firstLoading.value = false
+		loadingMore.value = false
+	}).catch((e : any) => {
+		firstLoading.value = false
+		loadingMore.value = false
+		uni.showToast({ title: e && e.message ? e.message : '加载失败，请重试', icon: 'none' })
+	})
+}
+
+const onLoadMore = () : void => {
+	load(false)
+}
+
+/* H5 端页面整体滚动，scroll-view 的 @scrolltolower 不触发，靠页面触底加载 */
+onReachBottom((): void => {
+	load(false)
+})
+
+const moreText = computed<string>((): string => {
+	if (loadingMore.value) { return '加载中…' }
+	if (!hasMore.value) { return '没有更多了' }
+	return '上拉加载更多'
+})
+
+/* ---------------- 排序口径 / 文案 ---------------- */
+// 月度榜 / 新人榜 展示月积分；总榜展示累计积分
+const valueOf = (p : UserJiuDeVO) : number => {
+	if (activeTab.value == 'total') { return p.points }
+	if (activeTab.value == 'newbie') { return p.weekPoints }
 	return p.monthPoints
 }
 
-const tabUnit = computed<string>(() : string => {
+const tabUnit = computed<string>((): string => {
 	if (activeTab.value == 'total') { return '积分' }
+	if (activeTab.value == 'newbie') { return '本周积分' }
 	return '本月积分'
 })
 
-const activeTabLabel = computed<string>(() : string => {
-	const t : { key : TabKey, label : string, sub : string } | undefined
-		= tabs.find((x : { key : TabKey, label : string, sub : string }) : boolean => x.key === activeTab.value)
-	return t ? t.label : ''
-})
-
-const footnote = computed<string>(() : string => {
+const footnote = computed<string>((): string => {
 	if (activeTab.value == 'monthly') {
 		return '月度榜按本月新增酒德币降序\n每月 1 日 00:00 重置'
 	}
 	if (activeTab.value == 'newbie') {
-		return '新人榜仅展示注册 30 天内的玩家\n按本月新增酒德币降序'
+		return '新人榜仅展示注册 7 天内的玩家\n按本月新增酒德币降序'
 	}
 	return '总榜按累计酒德币降序，永久有效'
 })
 
-const currentList = computed<JiudeRankPlayer[]>(() : JiudeRankPlayer[] => {
-	if (activeTab.value == 'monthly') { return JIUDE_RANK_MONTHLY }
-	if (activeTab.value == 'newbie')  { return JIUDE_RANK_NEWBIE }
-	return JIUDE_RANK_TOTAL
-})
+/* ---------------- 前三领奖台 ---------------- */
+const top3 = computed<UserJiuDeVO[]>((): UserJiuDeVO[] => currentList.value.slice(0, 3))
 
-/* ---------------- 前三 / "我"派生数据 ---------------- */
-// 领奖台恒取当前 Tab 的前 3 位
-const top3 = computed<JiudeRankPlayer[]>(() : JiudeRankPlayer[] => currentList.value.slice(0, 3))
-
-// 从 jiude-rank-data 直接复用，与 ME 在数据数组里的对象是同一份引用
-const me : JiudeRankPlayer = ME_PLAYER
-
-// 我在当前榜单的名次（找不到 = 未上榜，多用于新人榜）
-const myRankInTab = computed<number | null>(() : number | null => {
-	const list : JiudeRankPlayer[] = currentList.value
-	for (let i : number = 0; i < list.length; i++) {
-		if (list[i].isMe) { return i + 1 }
+/* ---------------- 展示工具 ---------------- */
+const formatNum = (n : number) : string => {
+	const s : string = (Number.isFinite(n) ? n : 0).toString()
+	let out : string = ''
+	let c : number = 0
+	for (let i : number = s.length - 1; i >= 0; i--) {
+		out = s.charAt(i) + out
+		c++
+		if (c % 3 == 0 && i > 0) { out = ',' + out }
 	}
-	return null
+	return out
+}
+
+const nameOf = (p : UserJiuDeVO) : string => {
+	const n : string = (p.username || '').toString()
+	return n.length > 0 ? n : '玩家' + p.userId
+}
+const avatarOf = (p : UserJiuDeVO) : string => (p.avatar || '').toString()
+
+// 行内名次：全局名次 = 已翻页偏移 + 行号
+const rankOf = (idx : number) : number => idx + 1
+
+onLoad((): void => {
+	load(true)
 })
-
-const meRankText = computed<string>(() : string => {
-	const r : number | null = myRankInTab.value
-	return r == null ? '未上榜' : ('No.' + r.toString())
-})
-
-/* ---------------- 段位色 / 文案 ---------------- */
-// 本页面段位色直接走静态映射，避免额外依赖
-const TIER_COLORS : { [k : string] : string } = {
-	diamond: '#7AB6F2',
-	club:    '#7AC79A',
-	heart:   '#FF6255',
-	spade:   '#C7CDCB',
-	crown:   '#E8C275',
-	legend:  '#FFE9B8'
-}
-const TIER_NAMES : { [k : string] : string } = {
-	diamond: '方片',
-	club:    '梅花',
-	heart:   '红心',
-	spade:   '黑桃',
-	crown:   '王座',
-	legend:  '传奇'
-}
-
-// tierLevel 1=I 最高 / 6=V 最低：转罗马数字 I ~ VI
-const ROMAN : string[] = ['I', 'II', 'III', 'IV', 'V', 'VI']
-
-const tierStyle = (key : string) : string => 'color:' + (TIER_COLORS[key] || '#C7CDCB') + ';'
-
-const tierLabel = (p : JiudeRankPlayer) : string => {
-	const suit : string = (TIER_NAMES[p.tierKey] || '方片')
-	const roman : string = ROMAN[p.tierLevel - 1] || p.tierLevel.toString()
-	return suit + ' ' + roman
-}
-
-const meTierText = computed<string>(() : string => tierLabel(me))
-const meTierStyle = computed<string>(() : string => tierStyle(me.tierKey))
-
-/* ---------------- 交互 ---------------- */
-// 点击其他玩家暂时占位；详情页接好后只换这一处
-const onRowTap = (p : JiudeRankPlayer) : void => {
-	if (p.isMe) { return }
-	uni.showToast({ title: p.name + ' · 即将上线', icon: 'none' })
-}
 </script>
 
 <style scoped>
@@ -296,71 +299,6 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	border-radius: 2rpx;
 }
 
-/* ============ 我 ============ */
-.me-card {
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
-	margin: 24rpx 24rpx 16rpx;
-	padding: 22rpx 24rpx;
-	background-color: #171A19;
-	border-radius: 20rpx;
-	border: 1rpx solid #2A2F2D;
-}
-.me-left {
-	flex: 1;
-	flex-direction: row;
-	align-items: center;
-}
-.me-avatar {
-	width: 80rpx;
-	height: 80rpx;
-	border-radius: 50%;
-	background-image: linear-gradient(135deg, #E8C275, #C89B3C);
-	align-items: center;
-	justify-content: center;
-	margin-right: 18rpx;
-}
-.me-avatar-text {
-	color: #14100A;
-	font-size: 32rpx;
-	font-weight: 700;
-}
-.me-info {
-	flex: 1;
-	flex-direction: column;
-}
-.me-name {
-	font-size: 28rpx;
-	color: #EDEFEE;
-	font-weight: 700;
-}
-.me-tier {
-	font-size: 22rpx;
-	margin-top: 4rpx;
-	font-weight: 600;
-}
-.me-stats {
-	font-size: 22rpx;
-	color: #8F9492;
-	margin-top: 6rpx;
-}
-.me-right {
-	flex-direction: column;
-	align-items: flex-end;
-	min-width: 140rpx;
-}
-.me-rank-num {
-	font-size: 30rpx;
-	color: #E8C275;
-	font-weight: 700;
-}
-.me-rank-label {
-	font-size: 20rpx;
-	color: #8F9492;
-	margin-top: 2rpx;
-}
-
 /* ============ 领奖台 ============ */
 .podium {
 	flex-direction: row;
@@ -387,6 +325,12 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	justify-content: center;
 	border-width: 4rpx;
 	border-style: solid;
+	overflow: hidden;
+}
+.podium-avatar-img {
+	width: 96rpx;
+	height: 96rpx;
+	border-radius: 50%;
 }
 .podium-avatar-silver {
 	border-color: #C7CDCB;
@@ -408,8 +352,9 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	color: #C7CDCB;
 	margin-top: 10rpx;
 	max-width: 140rpx;
+	overflow: hidden;
+	white-space: nowrap;
 	text-overflow: ellipsis;
-	lines: 1;
 }
 .podium-name-1 {
 	color: #EDEFEE;
@@ -454,6 +399,13 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	color: #B07AE8;
 }
 
+/* ============ 加载 / 空态 ============ */
+.state-box {
+	align-items: center;
+	padding: 120rpx 0 60rpx;
+}
+.state-text { font-size: 24rpx; color: #6E7573; }
+
 /* ============ 完整榜单 ============ */
 .list {
 	margin: 0 24rpx;
@@ -483,10 +435,6 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	border: 1rpx solid #2A2F2D;
 	margin-bottom: 10rpx;
 }
-.row-me {
-	background-color: rgba(232, 194, 117, 0.08);
-	border-color: rgba(232, 194, 117, 0.4);
-}
 .row-rank {
 	width: 56rpx;
 	height: 56rpx;
@@ -495,6 +443,7 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	align-items: center;
 	justify-content: center;
 	margin-right: 14rpx;
+	flex-shrink: 0;
 }
 .row-rank-gold {
 	background-color: rgba(232, 194, 117, 0.18);
@@ -505,10 +454,6 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 .row-rank-bronze {
 	background-color: rgba(176, 122, 232, 0.15);
 }
-.row-rank-me {
-	background-color: rgba(232, 194, 117, 0.25);
-	border: 2rpx solid #E8C275;
-}
 .row-rank-text {
 	font-size: 24rpx;
 	color: #8F9492;
@@ -518,9 +463,6 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	color: #EDEFEE;
 	font-weight: 700;
 }
-.row-rank-text-me {
-	color: #E8C275;
-}
 .row-avatar {
 	width: 64rpx;
 	height: 64rpx;
@@ -529,6 +471,13 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	align-items: center;
 	justify-content: center;
 	margin-right: 14rpx;
+	flex-shrink: 0;
+	overflow: hidden;
+}
+.row-avatar-img {
+	width: 64rpx;
+	height: 64rpx;
+	border-radius: 50%;
 }
 .row-avatar-text {
 	color: #C7CDCB;
@@ -549,35 +498,11 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	color: #EDEFEE;
 	font-weight: 600;
 }
-.me-tag {
-	margin-left: 10rpx;
-	padding: 0 8rpx;
-	background-color: rgba(232, 194, 117, 0.18);
-	border-radius: 6rpx;
-}
-.me-tag-text {
-	font-size: 18rpx;
-	color: #E8C275;
-	font-weight: 600;
-}
-.row-sub-line {
-	flex-direction: row;
-	align-items: center;
-	margin-top: 4rpx;
-}
-.row-city {
-	font-size: 20rpx;
-	color: #6E7573;
-}
+/* 等级标签：紧跟名字后，颜色与 jiude.vue 等级权益的 TIER_COLORS 保持一致 */
 .row-tier {
 	font-size: 20rpx;
-	margin-left: 10rpx;
-	font-weight: 600;
-}
-.row-join {
-	font-size: 20rpx;
-	color: #6E7573;
-	margin-left: 10rpx;
+	font-weight: 700;
+	margin-left: 12rpx;
 }
 .row-value {
 	flex-direction: column;
@@ -588,14 +513,18 @@ const onRowTap = (p : JiudeRankPlayer) : void => {
 	color: #EDEFEE;
 	font-weight: 600;
 }
-.row-value-me {
-	color: #E8C275;
-}
 .row-value-unit {
 	font-size: 18rpx;
 	color: #6E7573;
 	margin-top: 2rpx;
 }
+
+/* 加载更多 */
+.more {
+	align-items: center;
+	padding: 20rpx 0 8rpx;
+}
+.more-text { font-size: 21rpx; color: #4A4F4D; }
 
 /* ============ 脚注 ============ */
 .foot {

@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>沉默的筹码 · 投屏</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0208;
+      --surface:   #170510;
+      --card:      #1f0816;
+      --gold:      #c9a227;
+      --gold-lt:   #e8c84a;
+      --rose:      #e91e63;
+      --rose-lt:   #f06292;
+      --text:      #f5e6ec;
+      --muted:     #b08090;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --warn:      #f59e0b;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── 全屏布局 ── */
+    #app {
+      width: 100vw; height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3vh 4vw;
+      gap: 2.5vh;
+    }
+
+    /* ── 顶部：比赛名 + 状态 ── */
+    .header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.8vh;
+      width: 100%;
+    }
+    .store-name {
+      font-size: 2vh;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    .match-name {
+      font-size: 5.5vh;
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: 0.05em;
+      text-shadow: 0 0 40px rgba(201,162,39,0.4);
+    }
+    .match-status {
+      font-size: 1.8vh;
+      padding: 0.4vh 1.6vw;
+      border-radius: 999px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+    }
+    .match-status.ongoing  { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.4); }
+    .match-status.ended    { background: rgba(156,163,175,0.15); color: #9ca3af; border: 1px solid rgba(156,163,175,0.3); }
+
+    /* ── 中央主区：级别 + 倒计时 + 盲注 ── */
+    .main-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5vw;
+      width: 100%;
+    }
+
+    /* 级别 */
+    .level-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5vh;
+    }
+    .level-label {
+      font-size: 2vh;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+    }
+    .level-value {
+      font-size: 14vh;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--gold);
+      text-shadow: 0 0 60px rgba(201,162,39,0.6);
+    }
+
+    /* 倒计时 */
+    .timer-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1vh;
+      background: rgba(255,255,255,0.04);
+      border: 2px solid rgba(201,162,39,0.35);
+      border-radius: 2.4vh;
+      padding: 3vh 4vw;
+      min-width: 26vw;
+    }
+    .timer-label {
+      font-size: 2vh;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+    }
+    .timer-value {
+      font-size: 16vh;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-family: 'Courier New', 'Courier', monospace;
+      color: var(--gold-lt);
+      text-shadow: 0 0 80px rgba(232,200,74,0.55);
+      letter-spacing: 0.05em;
+      transition: color 0.3s;
+    }
+    .timer-value.warning {
+      color: var(--red);
+      text-shadow: 0 0 80px rgba(239,68,68,0.6);
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.55; }
+    }
+
+    /* 盲注 */
+    .blinds-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.8vh;
+      background: linear-gradient(135deg, rgba(201,162,39,0.12) 0%, rgba(201,162,39,0.04) 100%);
+      border: 2px solid rgba(201,162,39,0.28);
+      border-radius: 2.4vh;
+      padding: 3vh 3.5vw;
+      min-width: 18vw;
+    }
+    .blinds-title { font-size: 1.8vh; color: var(--muted); letter-spacing: 0.1em; }
+    .blind-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.3vh;
+    }
+    .blind-label { font-size: 1.8vh; color: var(--muted); }
+    .blind-value { font-size: 6.5vh; font-weight: 700; color: var(--text); }
+    .blind-divider {
+      width: 70%; height: 1px;
+      background: rgba(201,162,39,0.2);
+      margin: 0.5vh 0;
+    }
+
+    /* ── 下方信息栏 ── */
+    .info-bar {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 2vw;
+      width: 100%;
+    }
+    .info-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5vh;
+      background: var(--card);
+      border-radius: 1.8vh;
+      padding: 2.2vh 1.5vw;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .info-card .card-label { font-size: 1.8vh; color: var(--muted); letter-spacing: 0.08em; }
+    .info-card .card-value { font-size: 4.5vh; font-weight: 700; color: var(--text); }
+    .info-card.alive .card-value  { color: var(--green); text-shadow: 0 0 20px rgba(34,197,94,0.35); }
+    .info-card.total .card-value  { color: var(--muted); }
+    .info-card.avg   .card-value  { color: var(--gold); }
+    .info-card.chips .card-value  { color: var(--rose-lt); }
+
+    /* ── 下一级别预告 ── */
+    .next-level-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 1.2vh 2vw;
+      padding: 1.8vh 3vw;
+      background: rgba(255,255,255,0.05);
+      border-radius: 999px;
+      border: 1px solid rgba(201,162,39,0.22);
+      font-size: 2.6vh;
+      color: var(--muted);
+    }
+    .next-level-bar .next-label {
+      letter-spacing: 0.12em;
+      font-size: 2.6vh;
+      font-weight: 700;
+      color: var(--gold);
+    }
+    .next-level-bar .next-blinds {
+      color: var(--gold-lt);
+      font-weight: 800;
+      font-size: 3.4vh;
+      text-shadow: 0 0 24px rgba(201,162,39,0.35);
+    }
+
+    /* ── 蘑菇 / 奖励 / 截止买入 ── */
+    .meta-bar {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: 1.5vw;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      flex: 1;
+      min-width: 22%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6vh;
+      background: var(--surface);
+      border-radius: 1.6vh;
+      padding: 1.8vh 1.2vw;
+      border: 1px solid rgba(201,162,39,0.15);
+    }
+    .meta-item .meta-label {
+      font-size: 1.75vh;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-align: center;
+    }
+    .meta-item .meta-value {
+      font-size: 3.8vh;
+      font-weight: 800;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .meta-item .meta-value.mush { color: var(--rose-lt); }
+    .meta-item .meta-value.buyin {
+      font-size: 3.4vh;
+      color: var(--gold-lt);
+    }
+    .meta-item .meta-value.buyin.buyin-ended { color: var(--muted); font-size: 2.8vh; font-weight: 600; }
+    .meta-reward-text {
+      font-size: 2.1vh;
+      line-height: 1.45;
+      color: var(--text);
+      text-align: center;
+      font-weight: 600;
+      padding: 0 0.5vw;
+    }
+
+    /* ── 底栏：刷新时间 ── */
+    .footer {
+      position: fixed;
+      bottom: 2vh;
+      right: 2vw;
+      font-size: 1.4vh;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── 加载 / 错误 ── */
+    #loading, #error {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2vh;
+      background: var(--bg);
+      font-size: 3vh;
+      color: var(--muted);
+    }
+    .spinner {
+      width: 6vh; height: 6vh;
+      border: 0.4vh solid rgba(201,162,39,0.2);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #error { color: var(--red); }
+    #error button {
+      margin-top: 2vh;
+      padding: 1.2vh 3vw;
+      background: var(--rose);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      font-size: 2vh;
+      cursor: pointer;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span>正在加载比赛数据…</span>
+</div>
+
+<div id="error" class="hidden">
+  <span id="error-msg">加载失败</span>
+  <button onclick="init()">重试</button>
+</div>
+
+<div id="app" class="hidden">
+  <!-- 顶部 -->
+  <div class="header">
+    <div class="store-name" id="store-name"></div>
+    <div class="match-name"  id="match-name">—</div>
+    <div class="match-status" id="match-status">加载中</div>
+  </div>
+
+  <!-- 中央主区 -->
+  <div class="main-section">
+    <!-- 级别 -->
+    <div class="level-block">
+      <div class="level-label">当前级别</div>
+      <div class="level-value" id="current-level">—</div>
+    </div>
+
+    <!-- 倒计时 -->
+    <div class="timer-block">
+      <div class="timer-label">本级剩余时间</div>
+      <div class="timer-value" id="timer">--:--</div>
+    </div>
+
+    <!-- 盲注 -->
+    <div class="blinds-block">
+      <div class="blind-row">
+        <div class="blind-label">小盲</div>
+        <div class="blind-value" id="small-blind">—</div>
+      </div>
+      <div class="blind-divider"></div>
+      <div class="blind-row">
+        <div class="blind-label">大盲</div>
+        <div class="blind-value" id="big-blind">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 信息栏 -->
+  <div class="info-bar">
+    <div class="info-card alive">
+      <div class="card-label">存活人数</div>
+      <div class="card-value" id="alive-count">—</div>
+    </div>
+    <div class="info-card total">
+      <div class="card-label">参赛人数</div>
+      <div class="card-value" id="total-count">—</div>
+    </div>
+    <div class="info-card avg">
+      <div class="card-label">平均筹码</div>
+      <div class="card-value" id="avg-chips">—</div>
+    </div>
+    <div class="info-card chips">
+      <div class="card-label">筹码总额</div>
+      <div class="card-value" id="total-chips">—</div>
+    </div>
+  </div>
+
+  <!-- 蘑菇 / 比赛奖励 / 截止买入 -->
+  <div class="meta-bar">
+    <div class="meta-item">
+      <div class="meta-label">剩余蘑菇数</div>
+      <div class="meta-value mush" id="mush-remain">—</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">比赛奖励（段位分 / 门票）</div>
+      <div class="meta-reward-text" id="match-rewards">—</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">截止买入剩余（至第 7 级）</div>
+      <div class="meta-value buyin" id="buyin-remain">—</div>
+    </div>
+  </div>
+
+  <!-- 下一级别预告 -->
+  <div class="next-level-bar" id="next-level-bar">
+    <span class="next-label">下一级别</span>
+    <span class="next-blinds" id="next-blinds">—</span>
+  </div>
+</div>
+
+<div class="footer" id="footer-time">—</div>
+
+<script>
+  /* ───── 配置 ───── */
+  const API_BASE    = 'https://api2.silentstack.cn'
+  // const API_BASE    = 'http://localhost:8082'   // 后端地址，与 request.js 保持一致
+  const REFRESH_SEC = 10                          // 数据刷新间隔（秒）
+
+  /* ───── 读取 URL 参数 ───── */
+  const params  = new URLSearchParams(location.search)
+  const matchId = params.get('matchId') || params.get('id') || ''
+  const token   = params.get('token')   || 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJzaWxlbnQtc3RhY2siLCJhdWQiOiIxIiwiaXNzIjoicGFjYWxAc3RhY2siLCJleHAiOjI2MzY3MDg4NzJ9.qyX1FM6nawqfv59doWunrhYmVw6yejxmgEvWgnayJHsf8VyRjzE11RxDJLf5vMLB-mMu485eB9DLm362eXWjZQ'
+
+  /* ───── 状态 ───── */
+  let countdown         = 0
+  let countTimer        = null
+  let refreshTimer      = null
+  let warnAudio         = null
+  let warnSoundPlayed   = false
+  let levelRules        = []
+  /** 服务端剩余秒数锚点（currentLevelRemainSeconds + 收到时刻） */
+  let countdownAnchorSecs = 0
+  let countdownAnchorMs   = 0
+  let syncedLevel         = null
+  /** 最近一次接口数据，用于与本地倒计时同步计算截止买入剩余 */
+  let lastDetail          = null
+
+  /* ───── DOM 快捷访问 ───── */
+  const $ = id => document.getElementById(id)
+
+  /* ───── 数字格式化 ───── */
+  function fmt(n) {
+    if (n === null || n === undefined || n === '') return '—'
+    const num = Number(n)
+    if (isNaN(num)) return '—'
+    if (num >= 10000) return (num / 10000).toFixed(1).replace(/\.0$/, '') + '万'
+    return num.toLocaleString()
+  }
+
+  /* ───── 时间格式化 ───── */
+  function fmtTime(s) {
+    if (s < 0) s = 0
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+  }
+
+  /** 解析接口中文时长，如 "4分58秒" */
+  function parseCnDuration(str) {
+    if (!str || typeof str !== 'string') return null
+    let sec = 0
+    const m = str.match(/(\d+)\s*分/)
+    const s = str.match(/(\d+)\s*秒/)
+    if (m) sec += Number(m[1]) * 60
+    if (s) sec += Number(s[1])
+    return sec > 0 ? sec : null
+  }
+
+  /** 本级剩余秒数（与 /match/detail 字段对齐） */
+  function getLevelRemainSeconds(d) {
+    const raw = d.currentLevelRemainSeconds ?? d.levelRemainSeconds ?? d.remainSeconds
+    if (raw != null && raw !== '') {
+      const n = Number(raw)
+      if (Number.isFinite(n) && n >= 0) return Math.floor(n)
+    }
+    const parsed = parseCnDuration(d.currentLevelRemainTime)
+    if (parsed != null) return parsed
+    return 0
+  }
+
+  /** 单级别时长（秒）：优先级别规则 duration，否则比赛 firstHalf / secondHalf */
+  function getLevelDurationSeconds(level) {
+    const rule = levelRules.find(r => (r.matchLevel ?? r.level ?? r.id) === level)
+    if (rule?.duration != null && rule.duration !== '') {
+      const d = Number(rule.duration)
+      if (Number.isFinite(d) && d > 0) return Math.floor(d * 60)
+    }
+    const detail = lastDetail
+    const min = level <= 6
+      ? Number(detail?.firstHalfDuration ?? 20)
+      : Number(detail?.secondHalfDuration ?? detail?.firstHalfDuration ?? 20)
+    return (Number.isFinite(min) && min > 0 ? min : 20) * 60
+  }
+
+  function fmtRewardPart(label, score, ticket) {
+    const s = score === null || score === undefined || score === '' ? '—' : String(score)
+    const t = ticket === null || ticket === undefined || ticket === '' ? '—' : String(ticket)
+    return `${label} ${s} 分 / ${t} 票`
+  }
+
+  function formatMatchRewards(d) {
+    const a = fmtRewardPart('冠军', d.rankOneScore, d.rankOneTicket)
+    const b = fmtRewardPart('亚军', d.rankTwoScore, d.rankTwoTicket)
+    const c = fmtRewardPart('季军', d.rankThreeScore, d.rankThreeTicket)
+    return `${a}　${b}　${c}`
+  }
+
+  function playWarnSound() {
+    if (warnSoundPlayed) return
+    warnSoundPlayed = true
+    try {
+      if (!warnAudio) warnAudio = new Audio('6005.mp3')
+      warnAudio.currentTime = 0
+      warnAudio.play().catch(() => {})
+    } catch (_) {}
+  }
+
+  /** 根据锚点计算当前剩余秒数 */
+  function getCountdownNow() {
+    if (!countdownAnchorMs) return 0
+    const elapsed = Math.floor((Date.now() - countdownAnchorMs) / 1000)
+    return Math.max(0, countdownAnchorSecs - elapsed)
+  }
+
+  function ensureCountdownTicker() {
+    if (countTimer) return
+    countTimer = setInterval(() => {
+      countdown = getCountdownNow()
+      tick()
+    }, 1000)
+  }
+
+  /**
+   * 用接口 currentLevelRemainSeconds 同步倒计时（不每次 render 重启 interval，避免循环重置）
+   */
+  function syncCountdownFromDetail(d) {
+    const secs = getLevelRemainSeconds(d)
+    const level = d.currentLevel == null || d.currentLevel === '' ? null : Number(d.currentLevel)
+
+    if (syncedLevel !== level) {
+      syncedLevel = level
+      warnSoundPlayed = false
+    }
+
+    countdownAnchorSecs = secs
+    countdownAnchorMs = Date.now()
+    countdown = secs
+    ensureCountdownTicker()
+    tick()
+  }
+
+  function tick() {
+    countdown = getCountdownNow()
+    const el = $('timer')
+    el.textContent = fmtTime(countdown)
+    el.className   = 'timer-value' + (countdown <= 60 ? ' warning' : '')
+    if (countdown === 5) playWarnSound()
+    updateBuyInRemain()
+  }
+
+  /**
+   * 截止买入：开放至第 7 级开始前。剩余时间 = 本级剩余秒数 + 之后到 6 级结束的各级时长（1～6 级单级时长取 firstHalfDuration）。
+   */
+  function updateBuyInRemain() {
+    const el = $('buyin-remain')
+    if (!lastDetail) {
+      el.textContent = '—'
+      el.className = 'meta-value buyin'
+      return
+    }
+    const cur = Number(lastDetail.currentLevel ?? 1)
+    const ended = lastDetail.status !== 'P'
+    if (ended || cur >= 7) {
+      el.textContent = '已截止'
+      el.className = 'meta-value buyin buyin-ended'
+      return
+    }
+    el.className = 'meta-value buyin'
+    let remain = getCountdownNow()
+    for (let L = cur + 1; L < 7; L++) {
+      remain += getLevelDurationSeconds(L)
+    }
+    el.textContent = fmtTime(remain)
+  }
+
+  /* ───── 计算下一级别 ───── */
+  function getNextLevel(currentLevel) {
+    if (!levelRules.length) return null
+    const want = Number(currentLevel) + 1
+    return levelRules.find(r => (r.matchLevel ?? r.level ?? r.id) === want) || null
+  }
+
+  /* ───── 渲染数据 ───── */
+  function render(d) {
+    lastDetail = d
+
+    // 顶部
+    $('store-name').textContent  = d.storeName || ''
+    $('match-name').textContent  = d.name || '未命名比赛'
+    const statusEl = $('match-status')
+    const isOngoing = d.status === 'P'
+    statusEl.textContent  = isOngoing ? '进行中' : '已结束'
+    statusEl.className    = 'match-status ' + (isOngoing ? 'ongoing' : 'ended')
+
+    // 主区
+    $('current-level').textContent = d.currentLevel ?? '—'
+    $('small-blind').textContent   = fmt(d.minChips)
+    $('big-blind').textContent     = fmt(d.maxChips) + '/(' + fmt(d.preChips) + ')'
+
+    // 倒计时：以 currentLevelRemainSeconds 为锚点，本地递减；定时刷新仅重锚不重启
+    syncCountdownFromDetail(d)
+
+    // 信息栏
+    $('alive-count').textContent = d.currentPlayerCount ?? '—'
+    $('total-count').textContent = d.totalPlayerCount ?? d.playerCount ?? '—'
+    $('avg-chips').textContent   = fmt(d.avgChips)
+    $('total-chips').textContent = fmt(d.totalChips)
+
+    $('mush-remain').textContent = d.remainReliveCount ?? '—'
+    $('match-rewards').textContent = formatMatchRewards(d)
+
+    // 下一级别
+    const next = getNextLevel(d.currentLevel ?? 0)
+    const nextBar = $('next-level-bar')
+    if (next) {
+      $('next-blinds').textContent = `${fmt(next.minChips)} / ${fmt(next.maxChips)}`
+      nextBar.classList.remove('hidden')
+    } else {
+      nextBar.classList.add('hidden')
+    }
+
+    // 刷新时间
+    $('footer-time').textContent = '数据更新：' + new Date().toLocaleTimeString()
+  }
+
+  /* ───── 获取数据 ───── */
+  async function fetchData() {
+    if (!matchId) { showError('URL 中缺少 matchId 参数'); return }
+    try {
+      const headers = { 'Content-Type': 'application/json' }
+      if (token) headers['Authorization'] = token
+
+      const res  = await fetch(`${API_BASE}/match/detail/${matchId}`, { headers })
+      const json = await res.json()
+      if (!json?.result || !json?.object) throw new Error(json?.message || '接口返回异常')
+
+      render(json.object)
+      showApp()
+    } catch (e) {
+      showError(e.message || '网络请求失败')
+    }
+  }
+
+  /* ───── 获取级别规则 ───── */
+  async function fetchLevelRules() {
+    try {
+      const headers = {}
+      if (token) headers['Authorization'] = token
+      const res  = await fetch(`${API_BASE}/match/rule`, { headers })
+      const json = await res.json()
+      if (json?.result && json?.object) {
+        levelRules = json.object.list || json.object || []
+      }
+    } catch (_) {}
+  }
+
+  /* ───── 界面状态切换 ───── */
+  function showApp()        { $('loading').classList.add('hidden'); $('error').classList.add('hidden'); $('app').classList.remove('hidden') }
+  function showError(msg)   { $('loading').classList.add('hidden'); $('app').classList.add('hidden'); $('error').classList.remove('hidden'); $('error-msg').textContent = msg }
+
+  /* ───── 定期刷新 ───── */
+  function startAutoRefresh() {
+    clearInterval(refreshTimer)
+    refreshTimer = setInterval(fetchData, REFRESH_SEC * 1000)
+  }
+
+  /* ───── 初始化 ───── */
+  async function init() {
+    $('loading').classList.remove('hidden')
+    $('app').classList.add('hidden')
+    $('error').classList.add('hidden')
+    await fetchLevelRules()
+    await fetchData()
+    startAutoRefresh()
+  }
+
+  /* 阻止屏幕休眠（如浏览器支持） */
+  if ('wakeLock' in navigator) {
+    navigator.wakeLock.request('screen').catch(() => {})
+  }
+
+  init()
+</script>
+</body>
+</html>

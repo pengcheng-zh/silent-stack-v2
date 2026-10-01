@@ -49,21 +49,6 @@ export type MapLabel = {
 
 // ---- 对局详情 ----
 
-// 参赛玩家：rank 为按筹码降序后的名次，已淘汰玩家筹码为 0
-export type PlayerInfo = {
-	rank : number
-	name : string
-	avatar : string         // 头像 URL（空串 = 用文字头像）
-	chips : number
-	alive : boolean
-	isMe : boolean
-	buyIns : number         // 买入次数（含重购 / Re-entry）
-	fishScore : number      // 摸鱼分：现场记录的软指标，管理员可加减
-	tableNo : number        // 桌号（0 = 未分桌 / 已离桌）
-	seatNo : number         // 座位号（0 = 未分配）
-	offTable : boolean      // 已出桌：人还在赛场但暂离牌桌，可回桌
-	userStatus : string     // 后端玩家状态码：A=已加入 D=已离桌 L=已复活 K=已踢出 E=已报名 C=未加入
-}
 // 列表卡片只需要摘要字段，详情页要展示完整赛事数据，单独定义避免 GameItem 被撑胖
 export type GameDetail = {
 	game : GameItem
@@ -81,7 +66,6 @@ export type GameDetail = {
 	avgChips : number
 	totalChips : number
 	creatorId : number      // 比赛创建者用户 id（管理员操作区可见性判定）
-	players : PlayerInfo[]
 }
 
 // ---- 排行榜 ----
@@ -114,8 +98,11 @@ export type TierInfo = {
 export type RankPlayer = {
 	rank : number
 	name : string
+	userNo ?: string       // 用户编号（行内 ID 胶囊展示），来自接口 userNo
 	city : string
 	avatar ?: string
+	honorImage ?: string  // 荣誉背景图（榜单行底图），来自接口 honorImageUrl
+	levelImage ?: string  // 等级图（与名字同行展示），来自接口 levelImage
 	levelName ?: string    // 接口返回的等级名（如"黑桃 III"），存在时优先于花色段位展示
 	points : number
 	tier : string

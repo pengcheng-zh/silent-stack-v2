@@ -9,7 +9,8 @@
  * 所以这里不写 storage 标记，只用运行时内存记住"入口页"：
  * 内存随整包重载而清空，语义正好等于"每次重载都播一次，内部跳转不播"。
  *
- * 播放结束后回到入口页（在排行榜刷新 → 播完仍回排行榜），拿不到入口页时回广场。
+ * 播放结束后由 splashGoNext() 落地：tab 主页直接回入口页；二级页先落主页（广场）
+ * 再把入口页压栈，保证刷新后原生返回键可回主页；拿不到入口页时回广场。
  */
 
 /** 兜底落地页：没有可用入口时回广场 */
@@ -18,6 +19,15 @@ export const SPLASH_FALLBACK_URL : string = '/pages/plaza/plaza'
 /** 必须由上一步带参跳入、不适合单独作为落地页的页面 → 播完兜底回广场 */
 const NO_RETURN_PAGES : string[] = [
 	'pages/location-picker/location-picker'
+]
+
+/** tab 主页路由：这些页本身就是主页，直接落地即可 */
+const TAB_ROUTES : string[] = [
+	'pages/plaza/plaza',
+	'pages/jiude/jiude',
+	'pages/rank/rank',
+	'pages/record/record',
+	'pages/mine/mine'
 ]
 
 /** 本次启动的入口页（运行时内存，整包重载才会重置），形如 'pages/rank/rank?tab=1' */
@@ -51,6 +61,15 @@ function routeOf (entryStr : string) : string {
 	return p.indexOf('/') == 0 ? p.substring(1) : p
 }
 
+/** 入口串拼回可跳转的完整地址（补前导斜杠、保留 query） */
+function fullUrlOf (entryStr : string) : string {
+	const route : string = routeOf(entryStr)
+	if (route.length == 0) { return SPLASH_FALLBACK_URL }
+	const q : number = entryStr.indexOf('?')
+	const query : string = q >= 0 ? entryStr.substring(q) : ''
+	return '/' + route + query
+}
+
 /**
  * 检查本次启动是否需要先展示 splash：入口页不是 splash 时重定向过去。
  * 入口页本就是 splash（App 冷启动的默认首页、在 splash 上刷新、hash 只有 '/'）时
@@ -66,14 +85,39 @@ export function redirectSplashIfNeeded () : void {
 	uni.reLaunch({ url: '/pages/splash/splash' })
 }
 
-/** splash 播放结束后调用：回到入口页；入口未知或不该落地时回广场 */
-export function splashReturnUrl () : string {
+/**
+ * splash 播放结束后的落地动作：
+ *  - tab 主页 / 入口未知 / 必须带参跳入的页面：直接 reLaunch 落地（原行为）
+ *  - 其余二级页面：先 reLaunch 到主页（广场），再 navigateTo 入口页，
+ *    让页面栈变成 [主页, 二级页] —— 修复 H5 刷新二级页后原生返回键消失、
+ *    回不到主页的问题（刷新 → reLaunch 单页落地时栈里只有它自己，无页可回）。
+ *  - 未登录时 reLaunch(广场) 会被 auth-guard 拦截转去登录页，与原先行为一致。
+ */
+export function splashGoNext () : void {
 	const route : string = routeOf(entry)
-	if (route.length == 0) { return SPLASH_FALLBACK_URL }
-	if (route == 'pages/splash/splash') { return SPLASH_FALLBACK_URL }
-	const len : number = NO_RETURN_PAGES.length
-	for (let i : number = 0; i < len; i++) {
-		if (route == NO_RETURN_PAGES[i]) { return SPLASH_FALLBACK_URL }
+	// 入口未知或入口就是 splash：回兜底主页
+	if (route.length == 0 || route == 'pages/splash/splash') {
+		uni.reLaunch({ url: SPLASH_FALLBACK_URL })
+		return
 	}
-	return entry.indexOf('/') == 0 ? entry : '/' + entry
+	// 必须由上一步带参跳入的页面：不适合单独落地，回兜底主页
+	const nl : number = NO_RETURN_PAGES.length
+	for (let i : number = 0; i < nl; i++) {
+		if (route == NO_RETURN_PAGES[i]) {
+			uni.reLaunch({ url: SPLASH_FALLBACK_URL })
+			return
+		}
+	}
+	// tab 主页：直接落地（保留原 query）
+	if (TAB_ROUTES.indexOf(route) >= 0) {
+		uni.reLaunch({ url: fullUrlOf(entry) })
+		return
+	}
+	// 二级页面：先落主页，再把入口页压栈，保证返回键可回主页
+	uni.reLaunch({
+		url: SPLASH_FALLBACK_URL,
+		success: () => {
+			uni.navigateTo({ url: fullUrlOf(entry) })
+		}
+	})
 }

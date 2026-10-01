@@ -8,94 +8,46 @@
 		@refresherrefresh="onRefresh"
 		@scrolltolower="tryLoadMore"
 	>
-		<!-- 门店地图 -->
-		<view class="map-card">
-			<view class="map-head">
-				<view class="map-head-left">
+		<!-- 门店地图：通铺全宽，不包卡片；标题/定位浮层在地图上方 -->
+		<view class="map-wrap">
+			<view class="map-body">
+				<!-- #ifdef H5 -->
+				<!-- 天地图 JS API 挂载容器（封装见 common/tianditu.ts） -->
+				<view id="plazaTdtMap" class="tdt-map"></view>
+				<!-- #endif -->
+				<!-- #ifndef H5 -->
+				<view class="tdt-fallback">
+					<text class="tdt-fallback-text">天地图仅在 H5 端提供</text>
+				</view>
+				<!-- #endif -->
+
+				<!-- 地图加载失败重试遮罩：网络抖动/T 就绪超时时出现，点击重试重新初始化 -->
+				<view v-if="mapFailed" class="map-retry">
+					<text class="map-retry-icon">⟳</text>
+					<view class="map-retry-btn" @tap="onRetryMap">
+						<text class="map-retry-btn-text">点击重试</text>
+					</view>
+				</view>
+
+				<!-- 浮层：整条不拦截地图手势，只有「定位」按钮可点 -->
+				<view class="map-head">
 					<text class="map-title">门店地图</text>
-					<text class="map-sub">{{ stores.length }} 家门店 · {{ cityGroups.length }} 座城市 · 点击城市查看门店</text>
-				</view>
-				<view class="map-loc" @click="onLocate">
-					<text class="map-loc-text">定位</text>
+					<view class="map-loc" @click="onLocate">
+						<text class="map-loc-text">定位</text>
+					</view>
 				</view>
 			</view>
+		</view>
 
-			<view
-				class="map-body"
-				@touchstart="onTouchStart"
-				@touchmove.stop.prevent="onTouchMove"
-				@touchend="onTouchEnd"
-				@touchcancel="onTouchEnd"
-			>
-				<view class="map-stage" :style="stageStyle">
-					<image class="map-img" src="/static/china-map.svg" mode="scaleToFill"></image>
-
-					<!-- 省名标注 -->
-					<view
-						v-for="p in provinceLabels"
-						:key="'p-' + p.name"
-						class="province-label"
-						:style="pinStyle(p.x, p.y, 5)"
-					>
-						<text class="province-label-text">{{ p.name }}</text>
-					</view>
-
-					<!-- 参照城市 -->
-					<view
-						v-for="c in referenceCities"
-						:key="'r-' + c.name"
-						class="city"
-						:style="pinStyle(c.x, c.y, 6)"
-					>
-						<view class="city-dot"></view>
-						<text class="city-label">{{ c.name }}</text>
-					</view>
-
-					<!-- 城市标记：每座城市只有一个，点击后在下方展开该城市的门店 -->
-					<view
-						v-for="m in mapMarkers"
-						:key="m.key"
-						class="marker"
-						:style="pinStyle(m.x, m.y, m.z)"
-						@tap="selectCity(m.label)"
-					>
-						<view class="marker-pin-wrap">
-							<!-- 选中城市：扩散水圈（两圈相位差半程；App 端不支持 @keyframes，由定时器驱动） -->
-							<view v-if="m.active" class="marker-ripple">
-								<view class="ripple-ring" :style="rippleStyle(0)"></view>
-								<view class="ripple-ring" :style="rippleStyle(0.5)"></view>
-							</view>
-							<view class="marker-pin" :class="{ 'marker-pin-active': m.active }">
-								<view class="marker-dot"></view>
-							</view>
-							<view v-if="m.count > 1" class="marker-badge">
-								<text class="marker-badge-text">{{ m.count }}</text>
-							</view>
-						</view>
-						<view class="marker-label" :class="{ 'marker-label-active': m.active }">
-							<text class="marker-label-text" :class="{ 'marker-label-text-active': m.active }">{{ m.label }}</text>
-						</view>
-					</view>
+		<!-- 城市选择：独立卡片，与地图区分开 -->
+		<view class="city-card">
+			<view class="city-card-head">
+				<view class="city-card-title-wrap">
+					<view class="section-bar"></view>
+					<text class="city-card-title">选择城市</text>
 				</view>
-
-				<!-- 缩放控件 -->
-				<view class="zoom-bar">
-					<view class="zoom-btn" @tap="zoomOut">
-						<text class="zoom-btn-text">−</text>
-					</view>
-					<view class="zoom-btn" @tap="resetMap">
-						<text class="zoom-btn-text">◎</text>
-					</view>
-					<view class="zoom-btn" @tap="zoomIn">
-						<text class="zoom-btn-text">＋</text>
-					</view>
-				</view>
-				<view v-if="scale > 1.05" class="zoom-tip">
-					<text class="zoom-tip-text">{{ zoomText }}</text>
-				</view>
+				<text class="city-card-sub">{{ activeCity === '' ? '当前：全部门店' : '当前：' + activeCity }}</text>
 			</view>
-
-			<!-- 城市筛选 -->
 			<scroll-view class="chip-scroll" direction="horizontal" :show-scrollbar="false">
 				<view class="chip" :class="{ 'chip-active': activeCity === '' }" @tap="selectCity('')">
 					<text class="chip-text" :class="{ 'chip-text-active': activeCity === '' }">全部门店</text>
@@ -113,7 +65,6 @@
 					</view>
 				</view>
 			</scroll-view>
-
 		</view>
 
 		<!-- 点击地图上的城市标记后，该城市的门店在这里展开 -->
@@ -121,9 +72,9 @@
 			<view class="section-head">
 				<view class="section-title-wrap">
 					<view class="section-bar"></view>
-					<text class="section-title">{{ activeCityGroup.name }}门店</text>
+					<text class="section-title">{{ citySectionTitle }}</text>
 				</view>
-				<text class="section-count">{{ activeCityGroup.count }} 家 · {{ activeCityGroup.openGames }} 桌在开</text>
+				<text class="section-count">{{ citySectionCount }}</text>
 			</view>
 
 			<!-- 门店卡片两列平铺：比单列省一半纵向空间 -->
@@ -218,25 +169,38 @@
 				<text v-else class="list-foot-text">上拉或点击加载更多</text>
 			</view>
 		</view>
+
+		<!-- 公告弹窗：首次进入/刷新时拉取 announcement/recent，弹出最近一条发布中的公告 -->
+		<view v-if="annVisible" class="ann-overlay" @tap="closeAnnouncement">
+			<view class="ann-card" @tap.stop="">
+				<view class="ann-head">
+					<view class="ann-badge">
+						<text class="ann-badge-text">公告</text>
+					</view>
+					<text class="ann-title">{{ annTitle }}</text>
+				</view>
+				<scroll-view class="ann-body" direction="vertical" :show-scrollbar="false">
+					<text class="ann-content">{{ annContent }}</text>
+				</scroll-view>
+				<view class="ann-btn" @tap="closeAnnouncement">
+					<text class="ann-btn-text">我知道了</text>
+				</view>
+			</view>
+		</view>
 	</scroll-view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { fetchLiveStores } from '@/common/store-api'
 import { fetchMatchList } from '@/common/match-api'
-import { PROVINCE_LABELS, REFERENCE_CITIES, CITY_POINTS } from '@/common/map-data'
-import type { CityGroup, MapLabel } from '@/common/types'
-
-type MarkerItem = {
-	key : string
-	x : number
-	y : number
-	label : string
-	count : number
-	active : boolean
-	z : number
-}
+import { fetchRecentAnnouncement } from '@/common/notice-api'
+import type { AnnouncementRow } from '@/common/notice-api'
+import type { CityGroup } from '@/common/types'
+/* #ifdef H5 */
+import { TiandituCityMap } from '@/common/tianditu'
+import type { TdtCity } from '@/common/tianditu'
+/* #endif */
 
 /** 门店实况（/store/live-list → 广场地图 / 城市门店列表） */
 type PlazaStore = {
@@ -244,6 +208,9 @@ type PlazaStore = {
 	name : string
 	city : string
 	address : string
+	latitude : string        // 后端用 String 存
+	longitude : string
+	storeType : string       // 'silent' | 'jiude'
 	openGames : number        // 进行中比赛数
 	currentPlayers : number   // 在座人数
 	totalPlayers : number     // 累计人数
@@ -268,149 +235,9 @@ type PlazaGame = {
 
 const PAGE_LIMIT : number = 20
 
-// 地图容器尺寸（rpx），需与样式中的 .map-body 保持一致
-const MAP_W_RPX : number = 646
-const MAP_H_RPX : number = 612
-
-// 缩放参数
-const MAX_SCALE : number = 3
-
 const stores = ref<PlazaStore[]>([])
-const provinceLabels = ref<MapLabel[]>(PROVINCE_LABELS)
-const referenceCities = ref<MapLabel[]>(REFERENCE_CITIES)
 const activeCity = ref<string>('')
 const activeStoreId = ref<string>('')
-
-/* ---------------- 地图变换 ---------------- */
-const scale = ref<number>(1)
-const tx = ref<number>(0)
-const ty = ref<number>(0)
-
-// 手势状态（非响应式）
-let gMode : number = 0
-let gStartDist : number = 0
-let gStartScale : number = 1
-let gStartTx : number = 0
-let gStartTy : number = 0
-let gStartX : number = 0
-let gStartY : number = 0
-let gStartMidX : number = 0
-let gStartMidY : number = 0
-
-let mapWPx : number = 323
-let mapHPx : number = 306
-
-const invScale = computed<number>((): number => Math.round(1000 / scale.value) / 1000)
-
-const stageStyle = computed<string>((): string => {
-	const x : number = Math.round(tx.value)
-	const y : number = Math.round(ty.value)
-	const s : number = Math.round(scale.value * 1000) / 1000
-	return 'transform: translate(' + x + 'px, ' + y + 'px) scale(' + s + ');'
-})
-
-const zoomText = computed<string>((): string => Math.round(scale.value * 100) + '%')
-
-const clampNum = (v : number, lo : number, hi : number) : number => {
-	if (v < lo) return lo
-	if (v > hi) return hi
-	return v
-}
-
-const shiftLimit = (s : number, sizePx : number) : number => {
-	const m : number = sizePx * (s - 1) / 2
-	return m > 0 ? m : 0
-}
-
-const clampTx = (v : number, s : number) : number => {
-	const m : number = shiftLimit(s, mapWPx)
-	return clampNum(v, -m, m)
-}
-
-const clampTy = (v : number, s : number) : number => {
-	const m : number = shiftLimit(s, mapHPx)
-	return clampNum(v, -m, m)
-}
-
-const touchDist = (ax : number, ay : number, bx : number, by : number) : number => {
-	const dx : number = ax - bx
-	const dy : number = ay - by
-	return Math.sqrt(dx * dx + dy * dy)
-}
-
-const applyScale = (target : number) : void => {
-	const ns : number = clampNum(target, 1, MAX_SCALE)
-	scale.value = ns
-	if (ns <= 1.001) {
-		tx.value = 0
-		ty.value = 0
-		return
-	}
-	tx.value = clampTx(tx.value, ns)
-	ty.value = clampTy(ty.value, ns)
-}
-
-const zoomIn = () : void => applyScale(scale.value * 1.5)
-const zoomOut = () : void => applyScale(scale.value / 1.5)
-
-const resetMap = () : void => {
-	scale.value = 1
-	tx.value = 0
-	ty.value = 0
-}
-
-const onTouchStart = (e : UniTouchEvent) : void => {
-	const ts = e.touches
-	if (ts.length >= 2) {
-		gMode = 2
-		gStartDist = touchDist(ts[0].pageX, ts[0].pageY, ts[1].pageX, ts[1].pageY)
-		gStartScale = scale.value
-		gStartTx = tx.value
-		gStartTy = ty.value
-		gStartMidX = (ts[0].pageX + ts[1].pageX) / 2
-		gStartMidY = (ts[0].pageY + ts[1].pageY) / 2
-	} else if (ts.length == 1) {
-		gMode = 1
-		gStartX = ts[0].pageX
-		gStartY = ts[0].pageY
-		gStartTx = tx.value
-		gStartTy = ty.value
-	}
-}
-
-const onTouchMove = (e : UniTouchEvent) : void => {
-	const ts = e.touches
-	if (gMode == 2 && ts.length >= 2) {
-		const d : number = touchDist(ts[0].pageX, ts[0].pageY, ts[1].pageX, ts[1].pageY)
-		if (gStartDist > 0) {
-			const ns : number = clampNum(gStartScale * d / gStartDist, 1, MAX_SCALE)
-			const midX : number = (ts[0].pageX + ts[1].pageX) / 2
-			const midY : number = (ts[0].pageY + ts[1].pageY) / 2
-			scale.value = ns
-			tx.value = clampTx(gStartTx + (midX - gStartMidX), ns)
-			ty.value = clampTy(gStartTy + (midY - gStartMidY), ns)
-		}
-	} else if (gMode == 1 && ts.length == 1 && scale.value > 1.01) {
-		// 未放大时不拖动地图，避免和页面滚动冲突
-		const nx : number = gStartTx + (ts[0].pageX - gStartX)
-		const ny : number = gStartTy + (ts[0].pageY - gStartY)
-		tx.value = clampTx(nx, scale.value)
-		ty.value = clampTy(ny, scale.value)
-	}
-}
-
-const onTouchEnd = (e : UniTouchEvent) : void => {
-	const ts = e.touches
-	if (ts.length == 0) {
-		gMode = 0
-	} else if (ts.length == 1) {
-		gMode = 1
-		gStartX = ts[0].pageX
-		gStartY = ts[0].pageY
-		gStartTx = tx.value
-		gStartTy = ty.value
-	}
-}
 
 /* ---------------- 城市聚合 ---------------- */
 const storesOfCity = (name : string) : PlazaStore[] => {
@@ -419,20 +246,6 @@ const storesOfCity = (name : string) : PlazaStore[] => {
 		if (stores.value[i].city == name) { out.push(stores.value[i]) }
 	}
 	return out
-}
-
-const cityPointX = (name : string) : number => {
-	for (let i : number = 0; i < CITY_POINTS.length; i++) {
-		if (CITY_POINTS[i].name == name) { return CITY_POINTS[i].x }
-	}
-	return 50
-}
-
-const cityPointY = (name : string) : number => {
-	for (let i : number = 0; i < CITY_POINTS.length; i++) {
-		if (CITY_POINTS[i].name == name) { return CITY_POINTS[i].y }
-	}
-	return 50
 }
 
 const cityGroups = computed<CityGroup[]>((): CityGroup[] => {
@@ -458,8 +271,8 @@ const cityGroups = computed<CityGroup[]>((): CityGroup[] => {
 		out.push({
 			name: name,
 			province: '',
-			x: cityPointX(name),
-			y: cityPointY(name),
+			x: 0,
+			y: 0,
 			count: list.length,
 			openGames: games,
 			districts: '',
@@ -482,71 +295,108 @@ const activeCityStores = computed<PlazaStore[]>((): PlazaStore[] => {
 	return storesOfCity(activeCity.value)
 })
 
-/* ---------------- 标记生成 ---------------- */
-// 地图上每座城市只保留一个标记；门店统一放在地图下方的列表里，从根上避免标注重叠
-const mapMarkers = computed<MarkerItem[]>((): MarkerItem[] => {
-	const out : MarkerItem[] = []
+// 城市区标题/副标题：uvue 编译器对模板里 ref 的判空不做收窄，集中到 computed 里兜底
+const citySectionTitle = computed<string>((): string => {
+	return (activeCityGroup.value != null ? activeCityGroup.value.name : '') + '门店'
+})
+const citySectionCount = computed<string>((): string => {
+	const g = activeCityGroup.value
+	if (g == null) { return '' }
+	return g.count + ' 家 · ' + g.openGames + ' 桌在开'
+})
+
+/* ---------------- 天地图（仅 H5） ---------------- */
+let tdtMap : any = null
+const mapFailed = ref<boolean>(false)
+
+const doInitMap = () : void => {
+	if (tdtMap == null) {
+		tdtMap = new TiandituCityMap('plazaTdtMap', (cityName : string) => {
+			selectCity(cityName)
+		})
+	}
+	mapFailed.value = false
+	tdtMap.init().then(() => {
+		renderMap()
+	}).catch(() => {
+		mapFailed.value = true
+	})
+}
+
+// 重试：失败遮罩上的按钮触发
+const onRetryMap = () : void => {
+	doInitMap()
+}
+
+onMounted(() => {
+	doInitMap()
+})
+
+/* #ifdef H5 */
+/** 城市中心坐标：取该城市所有有效门店经纬度的平均值 */
+const cityCenter = (list : PlazaStore[]) : { lng : number, lat : number } | null => {
+	let lngSum : number = 0
+	let latSum : number = 0
+	let n : number = 0
+	for (let i : number = 0; i < list.length; i++) {
+		const lng : number = Number(list[i].longitude)
+		const lat : number = Number(list[i].latitude)
+		if (!isNaN(lng) && !isNaN(lat) && (lng != 0 || lat != 0)) {
+			lngSum += lng
+			latSum += lat
+			n++
+		}
+	}
+	if (n == 0) { return null }
+	return { lng: lngSum / n, lat: latSum / n }
+}
+
+const buildTdtCities = () : TdtCity[] => {
+	const out : TdtCity[] = []
 	for (let i : number = 0; i < cityGroups.value.length; i++) {
-		const c : CityGroup = cityGroups.value[i]
-		const cityActive : boolean = c.name == activeCity.value
+		const g : CityGroup = cityGroups.value[i]
+		const list : PlazaStore[] = storesOfCity(g.name)
+		const center : { lng : number, lat : number } | null = cityCenter(list)
+		if (center == null) { continue }
+		// 城市标记类型取该城市门店的类型（同城市门店类型一致；异常空串按 silent 处理）
+		const type : string = (list.length > 0 && list[0].storeType == 'jiude') ? 'jiude' : 'silent'
 		out.push({
-			key: 'c-' + c.name,
-			x: c.x,
-			y: c.y,
-			label: c.name,
-			count: c.count,
-			active: cityActive,
-			z: cityActive ? 30 : 10
+			name: g.name,
+			lng: center.lng,
+			lat: center.lat,
+			count: g.count,
+			openGames: g.openGames,
+			storeType: type
 		})
 	}
 	return out
-})
+}
 
-/* ---------------- 选中城市的扩散水圈 ---------------- */
-/* ⚠️ App 平台（uvue）不支持 CSS @keyframes 关键帧动画，只能用编程方式做动画。
-   这里用定时器每 40ms 算出相位，写入内联 transform/opacity —— Web / 小程序 / App 三端同一套逻辑。
-   两圈相位差半程，形成连续不断向外扩散的水圈 */
-const RIPPLE_CYCLE_MS : number = 2200
-const RIPPLE_FRAME_MS : number = 40
-const ripplePhase = ref<number>(0)      // 0 ~ 1 循环推进
-let rippleTimer : number | null = null
-let rippleOrigin : number = 0
+/** 用最新城市数据刷新地图标记，保持当前视角 */
+const renderMap = () : void => {
+	if (tdtMap != null) { tdtMap.render(buildTdtCities(), activeCity.value) }
+}
 
-const stopRipple = () : void => {
-	if (rippleTimer != null) {
-		clearInterval(rippleTimer)
-		rippleTimer = null
+// 选中城市变化：地图跟随平移/缩放，标记图标切换金/灰色
+watch(activeCity, (v : string) => {
+	if (tdtMap == null) { return }
+	if (v == '') {
+		tdtMap.frameAll()
+	} else {
+		tdtMap.focus(v)
 	}
-	ripplePhase.value = 0
-}
-
-const startRipple = () : void => {
-	stopRipple()
-	rippleOrigin = Date.now()
-	rippleTimer = setInterval((): void => {
-		ripplePhase.value = ((Date.now() - rippleOrigin) % RIPPLE_CYCLE_MS) / RIPPLE_CYCLE_MS
-	}, RIPPLE_FRAME_MS)
-}
-
-// offset：相位偏移（第二圈传 0.5）
-// 相位 0 → 半径 0.5 倍、最亮；相位 1 → 半径 3.2 倍、完全淡出
-const rippleStyle = (offset : number) : string => {
-	const t : number = (ripplePhase.value + offset) % 1
-	const ringScale : number = 0.5 + 2.7 * t
-	const opacity : number = (1 - t) * 0.9
-	return 'transform: scale(' + ringScale.toFixed(3) + ');opacity:' + opacity.toFixed(3) + ';'
-}
+	tdtMap.setActive(v)
+})
+/* #endif */
 
 /* ---------------- 选中逻辑 ---------------- */
 const selectCity = (name : string) : void => {
 	if (name == '' || activeCity.value == name) {
 		activeCity.value = ''
 		activeStoreId.value = ''
-		stopRipple()
 	} else {
 		activeCity.value = name
 		activeStoreId.value = ''
-		startRipple()
 	}
 	// 城市变化后对局列表重新拉取（city 参数交服务端过滤）
 	reloadGames()
@@ -570,8 +420,6 @@ const selectStore = (id : string) : void => {
 			break
 		}
 	}
-	// 从门店反选城市时，地图上的水圈同步跑到该城市
-	if (activeCity.value != '') { startRipple() }
 	// 请求带 storeId=xxx，由服务端过滤
 	reloadGames()
 }
@@ -593,7 +441,7 @@ const refreshing = ref<boolean>(false)
 let curPage : number = 1          // 已加载到的页码
 let reqSeq : number = 0           // 请求序号：切换 Tab / 城市 / 刷新时丢弃过期响应
 
-/* 列表 Tab：进行中的对局（status=P） / 预约对局（status=C 报名中） */
+/* 列表 Tab：进行中的对局（status=P） / 预约对局（status=B 已预约） */
 const gameTab = ref<'live' | 'booked'>('live')
 
 const filtering = computed<boolean>((): boolean => activeCity.value != '' || activeStoreId.value != '')
@@ -676,17 +524,6 @@ const loadMore = () : void => {
 	fetchGamesPage(curPage + 1, false)
 }
 
-onLoad((): void => {
-	try {
-		const wi = uni.getWindowInfo()
-		const r : number = wi.windowWidth / 750
-		mapWPx = MAP_W_RPX * r
-		mapHPx = MAP_H_RPX * r
-	} catch (err) {
-		// 取不到窗口信息时沿用默认值
-	}
-})
-
 // 门店实况列表（地图标记 + 城市门店行）
 const loadStores = () : void => {
 	fetchLiveStores().then((list) => {
@@ -698,12 +535,18 @@ const loadStores = () : void => {
 				name: it.name,
 				city: it.city,
 				address: it.address,
+				latitude: it.latitude,
+				longitude: it.longitude,
+				storeType: it.storeType,
 				openGames: it.currentMatchCount,
 				currentPlayers: it.currentPlayerCount,
 				totalPlayers: it.totalPlayerCount
 			})
 		}
 		stores.value = out
+		/* #ifdef H5 */
+		renderMap()
+		/* #endif */
 	}).catch(() => {
 		stores.value = []
 		uni.showToast({ title: '门店加载失败', icon: 'none' })
@@ -719,11 +562,7 @@ onShow((): void => {
 	loading.value = false
 	refreshing.value = false
 	reloadGames()
-	// 定时器只在页面可见时跑：离开页面 / 切后台都停掉，省电
-	if (activeCity.value != '') { startRipple() }
 })
-onHide((): void => { stopRipple() })
-onUnload((): void => { stopRipple() })
 
 // 触底加载：App 端页面本身不可滚动，只能靠 scroll-view 的 @scrolltolower
 const tryLoadMore = () : void => {
@@ -752,7 +591,17 @@ const onRefresh = () : void => {
 }
 
 const onLocate = () : void => {
-	uni.showToast({ title: '正在获取当前位置…', icon: 'none' })
+	uni.getLocation({
+		type: 'wgs84',
+		success: (res) => {
+			/* #ifdef H5 */
+			if (tdtMap != null) { tdtMap.centerAt(res.longitude, res.latitude, 13) }
+			/* #endif */
+		},
+		fail: () => {
+			uni.showToast({ title: '定位失败，请检查定位权限', icon: 'none' })
+		}
+	})
 }
 
 const onGameTap = (game : PlazaGame) : void => {
@@ -764,11 +613,33 @@ const onBook = (game : PlazaGame) : void => {
 	uni.showToast({ title: tip + game.title, icon: 'success' })
 }
 
-/* ---------------- 样式辅助 ---------------- */
-const pinStyle = (x : number, y : number, z : number) : string => {
-	return 'left:' + x + '%;top:' + y + '%;z-index:' + z + ';transform: translate(-50%, -50%) scale(' + invScale.value + ');'
+/* ---------------- 公告弹窗（首次进入/刷新时拉取最近一条） ---------------- */
+const annVisible = ref<boolean>(false)
+const annData = ref<AnnouncementRow | null>(null)
+// uvue 模板对 ref 判空不做收窄，集中到 computed 里兜底
+const annTitle = computed<string>((): string => annData.value != null ? annData.value.title : '')
+const annContent = computed<string>((): string => annData.value != null ? annData.value.content : '')
+
+const loadAnnouncement = () : void => {
+	fetchRecentAnnouncement().then((row : AnnouncementRow | null) => {
+		if (row == null) { return }
+		annData.value = row
+		annVisible.value = true
+	}).catch(() => {
+		// 公告拉取失败静默处理，不打扰用户
+	})
 }
 
+const closeAnnouncement = () : void => {
+	annVisible.value = false
+}
+
+// 只在首次进入/刷新时弹一次（onMounted 不随页面返回重触发）；从其他页返回（onShow）不重复弹
+onMounted(() => {
+	loadAnnouncement()
+})
+
+/* ---------------- 样式辅助 ---------------- */
 // 状态色：与整体品牌色统一为金黄系（渐变黄主色 + 深金强调 + 半透明金黄背景），
 // 整体观感更贴近"比赛奖牌 / 奖杯"的视觉语言
 const statusColor = (status : string) : string => {
@@ -843,139 +714,48 @@ const formatChips = (n : number) : string => {
 		overflow: hidden;
 		background-color: #111413;
 	}
-	.map-stage {
-		position: absolute;
-		left: 0;
-		top: 0;
+
+	/* 天地图挂载容器：position 相对定位，内部 div 由天地图 SDK 填充 */
+	.tdt-map {
+		position: relative;
 		width: 100%;
 		height: 100%;
 	}
-	.map-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 
-	/* 缩放控件 */
-	.zoom-bar {
+	/* 非 H5 端占位 */
+	.tdt-fallback { flex: 1; align-items: center; justify-content: center; }
+	.tdt-fallback-text { font-size: 24rpx; color: #7E8281; }
+
+	/* 地图加载失败重试遮罩：覆盖在地图容器之上，提供手动重试入口 */
+	.map-retry {
 		position: absolute;
-		right: 16rpx;
-		bottom: 16rpx;
+		left: 0; right: 0; top: 0; bottom: 0;
 		flex-direction: column;
-		border-radius: 16rpx;
-		overflow: hidden;
-		background-color: rgba(23, 26, 25, 0.94);
-		box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.5);
-	}
-	.zoom-btn { width: 60rpx; height: 60rpx; align-items: center; justify-content: center; }
-	.zoom-btn-text { font-size: 32rpx; color: #E8C275; font-weight: 700; line-height: 36rpx; }
-	.zoom-tip {
-		position: absolute;
-		left: 16rpx;
-		bottom: 16rpx;
-		padding: 6rpx 16rpx;
-		border-radius: 999rpx;
-		background-image: linear-gradient(135deg, #F5D98E, #C89B3C);
-	}
-	.zoom-tip-text { font-size: 20rpx; color: #FFFFFF; font-weight: 600; }
-
-	/* 省名标注 */
-	.province-label { position: absolute; }
-	.province-label-text {
-		font-size: 22rpx;
-		color: #5C605F;
-		letter-spacing: 6rpx;
-		font-weight: 600;
-	}
-
-	/* 参照城市 */
-	.city { position: absolute; flex-direction: row; align-items: center; }
-	.city-dot { width: 10rpx; height: 10rpx; border-radius: 50%; background-color: #7E8281; margin-right: 6rpx; }
-	.city-label {
-		font-size: 20rpx;
-		color: #A0A5A3;
-		background-color: rgba(11, 13, 12, 0.80);
-		padding: 2rpx 10rpx;
-		border-radius: 999rpx;
-	}
-
-	/* 城市标记 */
-	/* ⚠️ uvue（App 端）overflow 默认是 hidden（不是 W3C 的 visible），
-	   marker / pin-wrap / 水圈容器三层都要显式放开，否则扩散到 3.2 倍的环会被整片裁掉 */
-	.marker { position: absolute; flex-direction: column; align-items: center; overflow: visible; }
-	.marker-pin-wrap {
-		position: relative;
-		width: 40rpx;
-		height: 40rpx;
 		align-items: center;
 		justify-content: center;
-		overflow: visible;
+		background-color: rgba(11, 13, 12, 0.82);
+		z-index: 5;
 	}
-	/* 选中态水圈：以 pin 圆心向外扩散，不占位、不拦截点击。
-	   半径 / 透明度由 rippleStyle() 每帧写内联样式（App 端不支持 @keyframes） */
-	.marker-ripple {
-		position: absolute;
-		left: 0;
-		top: 0;
-		width: 40rpx;
-		height: 40rpx;
-		overflow: visible;
-		z-index: 1;
+	.map-retry-icon {
+		font-size: 56rpx;
+		color: #E8C275;
+		margin-bottom: 16rpx;
 	}
-	.ripple-ring {
-		position: absolute;
-		left: 0;
-		top: 0;
-		width: 40rpx;
-		height: 40rpx;
-		border-radius: 50%;
-		background-color: rgba(232, 194, 117, 0.26);
-		border: 2rpx solid rgba(232, 194, 117, 0.9);
-		transform: scale(0.5);
-		opacity: 0.9;
+	.map-retry-text {
+		font-size: 24rpx;
+		color: #9AA19E;
+		margin-bottom: 28rpx;
 	}
-
-	.marker-pin {
-		width: 40rpx;
-		height: 40rpx;
-		border-radius: 50% 50% 50% 0;
-		background-color: #7E8281;
-		transform: rotate(-45deg);
-		align-items: center;
-		justify-content: center;
-		box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.4);
-		/* 抬到水圈之上，避免扩散环盖住 pin */
-		position: relative;
-		z-index: 2;
-	}
-	.marker-pin-active {
-		background-image: linear-gradient(135deg, #F5D98E, #C89B3C);
-		box-shadow: 0 4rpx 14rpx rgba(217, 164, 65, 0.55);
-	}
-	.marker-dot { width: 14rpx; height: 14rpx; border-radius: 50%; background-color: #FFFFFF; }
-	.marker-badge {
-		position: absolute;
-		right: -12rpx;
-		top: -8rpx;
-		min-width: 26rpx;
-		height: 26rpx;
-		padding: 0 6rpx;
+	.map-retry-btn {
+		padding: 16rpx 44rpx;
+		background-image: linear-gradient(135deg, #E8C275, #C89B3C);
 		border-radius: 999rpx;
-		background-image: linear-gradient(135deg, #F5D98E, #C89B3C);
-		border: 2rpx solid #FFFFFF;
-		align-items: center;
-		justify-content: center;
 	}
-	.marker-badge-text { font-size: 18rpx; color: #FFFFFF; font-weight: 700; line-height: 24rpx; }
-	.marker-label {
-		margin-top: 6rpx;
-		padding: 4rpx 12rpx;
-		border-radius: 999rpx;
-		background-color: rgba(23, 26, 25, 0.95);
-		border: 1rpx solid #272B2A;
+	.map-retry-btn-text {
+		font-size: 26rpx;
+		color: #14100A;
+		font-weight: 700;
 	}
-	.marker-label-active {
-		background-image: linear-gradient(135deg, #F5D98E, #C89B3C);
-		border-color: #C89B3C;
-	}
-	.marker-label-text { font-size: 20rpx; color: #A0A5A3; font-weight: 600; }
-	.marker-label-text-active { color: #FFFFFF; }
 
 	/* 城市筛选 */
 	/* 横向滚动：chip 直接作为 scroll-view 的 flex item，必须 flex-shrink: 0，否则会被压回容器宽度导致不溢出、滚不动 */
@@ -1137,4 +917,52 @@ const formatChips = (n : number) : string => {
 
 	.list-foot { padding: 32rpx 0 8rpx; align-items: center; }
 	.list-foot-text { font-size: 24rpx; color: #7E8281; }
+
+	/* ============ 公告弹窗 ============ */
+	.ann-overlay {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.65);
+		align-items: center;
+		justify-content: center;
+		/* 天地图 CSS 内有 z-index:99999 的图层，弹窗必须压过它 */
+		z-index: 100000;
+		padding: 48rpx;
+	}
+	.ann-card {
+		width: 620rpx;
+		max-height: 72vh;
+		background-color: #171A19;
+		border-radius: 24rpx;
+		border: 1rpx solid #2A2F2D;
+		flex-direction: column;
+		padding: 30rpx 30rpx 24rpx;
+	}
+	.ann-head { flex-direction: row; align-items: center; }
+	.ann-badge {
+		padding: 6rpx 16rpx;
+		border-radius: 8rpx;
+		background-image: linear-gradient(135deg, #F5D98E, #C89B3C);
+		margin-right: 14rpx;
+	}
+	.ann-badge-text { font-size: 22rpx; color: #FFFFFF; font-weight: 700; }
+	.ann-title { flex: 1; font-size: 30rpx; color: #EDEFEE; font-weight: 700; }
+	.ann-date { font-size: 22rpx; color: #7E8281; margin-top: 10rpx; }
+	.ann-body {
+		/* 固定高度：避免从其他页面返回时布局未就绪导致测量高度异常；
+		   短内容留白、长内容在该区域内滚动 */
+		height: 480rpx;
+		margin-top: 18rpx;
+	}
+	.ann-content { font-size: 26rpx; color: #C6CBC9; line-height: 44rpx; }
+	.ann-btn {
+		margin-top: 24rpx;
+		padding: 18rpx 0;
+		border-radius: 999rpx;
+		align-items: center;
+		justify-content: center;
+		background-image: linear-gradient(135deg, #F5D98E, #C89B3C);
+		box-shadow: 0 4rpx 12rpx rgba(217, 164, 65, 0.35);
+	}
+	.ann-btn-text { font-size: 26rpx; color: #FFFFFF; font-weight: 700; }
 </style>
